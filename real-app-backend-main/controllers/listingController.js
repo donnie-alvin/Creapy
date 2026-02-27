@@ -135,7 +135,15 @@ exports.getListing = catchAsync(async (req, res, next) => {
     return next(new AppError("No listing found with that ID", 404));
   }
 
-  // 3) Check visibility: conceal pending_payment and early_access (unless premium)
+  // 3) Owners can always view their own listing (including pending_payment/early_access)
+  if (req.user && listing.user.toString() === req.user.id) {
+    return res.status(200).json({
+      status: "success",
+      data: listing,
+    });
+  }
+
+  // 4) Check visibility: conceal pending_payment and early_access (unless premium)
   const isPremium = req.user ? isPremiumTenant(req.user) : false;
   if (listing.status === "pending_payment") {
     return next(new AppError("No listing found with that ID", 404));
@@ -144,7 +152,7 @@ exports.getListing = catchAsync(async (req, res, next) => {
     return next(new AppError("No listing found with that ID", 404));
   }
 
-  // 4) Send the response
+  // 5) Send the response
   res.status(200).json({
     status: "success",
     data: listing,

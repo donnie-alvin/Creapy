@@ -13,7 +13,7 @@ router.get(
   authController.optionalAuth,
   listingController.getHomeGroupedByLocation
 );
-router.get("/listing/:id", listingController.getListing);
+router.get("/listing/:id", authController.optionalAuth, listingController.getListing);
 router.get("/:id", listingController.getListing);
 
 // PROTECTED
