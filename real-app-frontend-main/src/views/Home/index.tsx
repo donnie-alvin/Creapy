@@ -1,5 +1,5 @@
 // MUI Imports
-import { Box, Grid, Chip } from "@mui/material";
+import { Box, Grid } from "@mui/material";
 // React Imports
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -296,18 +296,24 @@ const Home = () => {
                                     />
                                   ) : null}
                                   {item?.status === "early_access" ? (
-                                    <Chip
-                                      label="Early Access"
-                                      color="info"
-                                      size="small"
+                                    <Box
                                       sx={{
+                                        background: "#dbeafe",
+                                        color: "#1e40af",
+                                        fontSize: "11px",
+                                        fontWeight: 700,
+                                        borderRadius: "999px",
+                                        padding: "3px 10px",
+                                        display: "inline-block",
                                         position: "absolute",
                                         top: 8,
                                         left: 8,
                                         zIndex: 1,
                                         pointerEvents: "none",
                                       }}
-                                    />
+                                    >
+                                      ⚡ Early Access
+                                    </Box>
                                   ) : null}
                                 </Box>
                                 <SubHeading
@@ -404,18 +410,24 @@ const Home = () => {
                           }}
                         />
                         {item?.status === "early_access" ? (
-                          <Chip
-                            label="Early Access"
-                            color="info"
-                            size="small"
+                          <Box
                             sx={{
+                              background: "#dbeafe",
+                              color: "#1e40af",
+                              fontSize: "11px",
+                              fontWeight: 700,
+                              borderRadius: "999px",
+                              padding: "3px 10px",
+                              display: "inline-block",
                               position: "absolute",
                               top: 8,
                               left: 8,
                               zIndex: 1,
                               pointerEvents: "none",
                             }}
-                          />
+                          >
+                            ⚡ Early Access
+                          </Box>
                         ) : null}
                       </Box>
                       <Box sx={{ padding: "18px 16px" }}>
@@ -587,18 +599,24 @@ const Home = () => {
                         }}
                       />
                       {item?.status === "early_access" ? (
-                        <Chip
-                          label="Early Access"
-                          color="info"
-                          size="small"
+                        <Box
                           sx={{
+                            background: "#dbeafe",
+                            color: "#1e40af",
+                            fontSize: "11px",
+                            fontWeight: 700,
+                            borderRadius: "999px",
+                            padding: "3px 10px",
+                            display: "inline-block",
                             position: "absolute",
                             top: 8,
                             left: 8,
                             zIndex: 1,
                             pointerEvents: "none",
                           }}
-                        />
+                        >
+                          ⚡ Early Access
+                        </Box>
                       ) : null}
                     </Box>
                     <Box sx={{ padding: "18px 16px" }}>
@@ -764,18 +782,24 @@ const Home = () => {
                         }}
                       />
                       {item?.status === "early_access" ? (
-                        <Chip
-                          label="Early Access"
-                          color="info"
-                          size="small"
+                        <Box
                           sx={{
+                            background: "#dbeafe",
+                            color: "#1e40af",
+                            fontSize: "11px",
+                            fontWeight: 700,
+                            borderRadius: "999px",
+                            padding: "3px 10px",
+                            display: "inline-block",
                             position: "absolute",
                             top: 8,
                             left: 8,
                             zIndex: 1,
                             pointerEvents: "none",
                           }}
-                        />
+                        >
+                          ⚡ Early Access
+                        </Box>
                       ) : null}
                     </Box>
                     <Box sx={{ padding: "18px 16px" }}>

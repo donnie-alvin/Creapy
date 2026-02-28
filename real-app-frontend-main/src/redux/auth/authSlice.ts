@@ -43,4 +43,13 @@ export const selectedUserRole = (state: RootState) =>
 export const selectedUserPremiumExpiry = (state: RootState) =>
   state.auth?.user?.data?.user?.premiumExpiry;
 
-export const selectedUserToken = (state: RootState) => state.auth?.user?.token;
+export const selectedCanPublishListing = (state: RootState) => {
+  const user = state.auth?.user?.data?.user;
+  const role = user?.role;
+
+  if (MONETIZATION_MODE !== "LANDLORD_PAID") {
+    return role === "landlord";
+  }
+
+  return role === "landlord" && isPremiumTenant(user);
+};

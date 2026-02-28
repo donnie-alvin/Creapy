@@ -25,6 +25,78 @@ import AppContainer from "../../../components/ui/AppContainer";
 import AppCard from "../../../components/ui/AppCard";
 import AppButton from "../../../components/ui/AppButton";
 
+const getListingStatusBadge = (status: string) => {
+  if (status === "pending_payment") {
+    return (
+      <Box
+        sx={{
+          background: "#fef3c7",
+          color: "#92400e",
+          borderRadius: "999px",
+          padding: "6px 12px",
+          fontSize: "12px",
+          display: "inline-block",
+          whiteSpace: "nowrap",
+        }}
+      >
+        Pending Payment
+      </Box>
+    );
+  }
+
+  if (status === "early_access") {
+    return (
+      <Box
+        sx={{
+          background: "#dbeafe",
+          color: "#1e40af",
+          borderRadius: "999px",
+          padding: "6px 12px",
+          fontSize: "12px",
+          display: "inline-block",
+          whiteSpace: "nowrap",
+        }}
+      >
+        Early Access
+      </Box>
+    );
+  }
+
+  if (status === "active") {
+    return (
+      <Box
+        sx={{
+          background: "#dcfce7",
+          color: "#166534",
+          borderRadius: "999px",
+          padding: "6px 12px",
+          fontSize: "12px",
+          display: "inline-block",
+          whiteSpace: "nowrap",
+        }}
+      >
+        Active
+      </Box>
+    );
+  }
+
+  return (
+    <Box
+      sx={{
+        background: "#f1f5f9",
+        color: "#64748b",
+        borderRadius: "999px",
+        padding: "6px 12px",
+        fontSize: "12px",
+        display: "inline-block",
+        whiteSpace: "nowrap",
+      }}
+    >
+      Inactive
+    </Box>
+  );
+};
+
 const AllListings = () => {
   const navigate = useNavigate();
   const userId = useTypedSelector(selectedUserId);
@@ -152,19 +224,29 @@ const AllListings = () => {
                           <Box sx={{ width: "100%" }}>
                             <Box
                               sx={{
-                                fontSize: "18px",
-                                fontWeight: 600,
-                                color: "#49454F",
-                                "&:hover": {
-                                  cursor: "pointer",
-                                  textDecoration: "underline",
-                                },
-                              }}
-                              onClick={() => {
-                                navigate(`/listing/${item?._id}`);
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 1,
+                                flexWrap: "wrap",
                               }}
                             >
-                              {item?.name}
+                              <Box
+                                sx={{
+                                  fontSize: "18px",
+                                  fontWeight: 600,
+                                  color: "#49454F",
+                                  "&:hover": {
+                                    cursor: "pointer",
+                                    textDecoration: "underline",
+                                  },
+                                }}
+                                onClick={() => {
+                                  navigate(`/listing/${item?._id}`);
+                                }}
+                              >
+                                {item?.name}
+                              </Box>
+                              {getListingStatusBadge(item?.status)}
                             </Box>
                             <Box
                               sx={{
@@ -185,48 +267,61 @@ const AllListings = () => {
                               width: { xs: "100%", sm: "auto" },
                             }}
                           >
-                            <AppButton
-                              variant="outlined"
-                              color="error"
-                              startIcon={
-                                selectedListing === item?._id &&
-                                isDeleting ? null : (
-                                  <MdDeleteOutline />
-                                )
-                              }
-                              disabled={isDeleting}
-                              onClick={() => {
-                                DeleteListingHandler(item?._id);
-                                setSelectedListing(item?._id);
-                              }}
-                            >
-                              {selectedListing === item?._id && isDeleting ? (
-                                <Box
-                                  sx={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    marginTop: "7px",
-                                    height: "20px",
+                            {item?.status === "pending_payment" ? (
+                              <AppButton
+                                variant="contained"
+                                onClick={() => {
+                                  navigate(`/listings/${item?._id}/pay`);
+                                }}
+                              >
+                                Pay Now
+                              </AppButton>
+                            ) : (
+                              <>
+                                <AppButton
+                                  variant="outlined"
+                                  color="error"
+                                  startIcon={
+                                    selectedListing === item?._id &&
+                                    isDeleting ? null : (
+                                      <MdDeleteOutline />
+                                    )
+                                  }
+                                  disabled={isDeleting}
+                                  onClick={() => {
+                                    DeleteListingHandler(item?._id);
+                                    setSelectedListing(item?._id);
                                   }}
                                 >
-                                  <DotLoader color="#f44336" size={12} />
-                                </Box>
-                              ) : (
-                                "Delete"
-                              )}
-                            </AppButton>
+                                  {selectedListing === item?._id && isDeleting ? (
+                                    <Box
+                                      sx={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        marginTop: "7px",
+                                        height: "20px",
+                                      }}
+                                    >
+                                      <DotLoader color="#f44336" size={12} />
+                                    </Box>
+                                  ) : (
+                                    "Delete"
+                                  )}
+                                </AppButton>
 
-                            <AppButton
-                              variant="outlined"
-                              color="success"
-                              startIcon={<CiEdit />}
-                              onClick={() => {
-                                navigate(`/listings/${item?._id}`);
-                              }}
-                            >
-                              Edit
-                            </AppButton>
+                                <AppButton
+                                  variant="outlined"
+                                  color="success"
+                                  startIcon={<CiEdit />}
+                                  onClick={() => {
+                                    navigate(`/listings/${item?._id}`);
+                                  }}
+                                >
+                                  Edit
+                                </AppButton>
+                              </>
+                            )}
                           </Box>
                         </Box>
                         <Box
@@ -241,7 +336,7 @@ const AllListings = () => {
                         >
                           <Box>Date:</Box>
                           <Box sx={{ fontWeight: 600 }}>
-                            {convertToFormattedDate(item?.createdAt)}
+                            {convertToFormattedDate(item?.publishedAt ?? item?.createdAt)}
                           </Box>
                           <Box>
                             {item?.type === "rent" ? (

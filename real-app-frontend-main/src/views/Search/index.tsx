@@ -6,7 +6,6 @@ import { useDispatch } from "react-redux";
 import {
   Box,
   Grid,
-  Chip,
   RadioGroup,
   FormControlLabel,
   Radio,
@@ -28,7 +27,6 @@ import {
   selectedSearchText,
   setSearchText,
 } from "../../redux/global/globalSlice";
-import { selectedUserToken } from "../../redux/auth/authSlice";
 // React Icons
 import { FaLocationDot } from "react-icons/fa6";
 import { FaBed } from "react-icons/fa";
@@ -68,7 +66,7 @@ const SearchPage = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const searchText = useTypedSelector(selectedSearchText);
-  const token = useTypedSelector(selectedUserToken);
+  const token = JSON.parse(localStorage.getItem("user") || "null")?.token;
 
   const [sideBarData, setSideBarData] = useState<any>({
     searchTerm: "",
@@ -463,18 +461,24 @@ const SearchPage = () => {
                             }}
                           />
                           {item?.status === "early_access" ? (
-                            <Chip
-                              label="Early Access"
-                              color="info"
-                              size="small"
+                            <Box
                               sx={{
+                                background: "#dbeafe",
+                                color: "#1e40af",
+                                fontSize: "11px",
+                                fontWeight: 700,
+                                borderRadius: "999px",
+                                padding: "3px 10px",
+                                display: "inline-block",
                                 position: "absolute",
                                 top: 8,
                                 left: 8,
                                 zIndex: 1,
                                 pointerEvents: "none",
                               }}
-                            />
+                            >
+                              ⚡ Early Access
+                            </Box>
                           ) : null}
                         </Box>
                         <Box sx={{ padding: "18px 16px" }}>

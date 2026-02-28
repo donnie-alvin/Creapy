@@ -46,7 +46,7 @@ const TenantDashboard = () => {
     isLoading: savedSearchesLoading,
     refetch: refetchSavedSearches,
   } =
-    useGetMySavedSearchesQuery();
+    useGetMySavedSearchesQuery(undefined);
 
   const [deleteSavedSearch, { isLoading: isDeletingSavedSearch }] =
     useDeleteSavedSearchMutation();

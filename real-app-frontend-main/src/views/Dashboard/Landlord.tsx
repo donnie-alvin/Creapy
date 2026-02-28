@@ -1,243 +1,316 @@
 // React Imports
-import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 // MUI Imports
-import {
-  Box,
-  Typography,
-  Table,
-  TableHead,
-  TableBody,
-  TableRow,
-  TableCell,
-  TableContainer,
-  Chip,
-  Paper,
-} from "@mui/material";
+import { Box } from "@mui/material";
 // Hook Imports
 import useTypedSelector from "../../hooks/useTypedSelector";
 // Redux Imports
 import { selectedUserId } from "../../redux/auth/authSlice";
 import {
-  useGetListingQuery,
   useDeleteListingMutation,
+  useGetListingQuery,
 } from "../../redux/api/listingApiSlice";
 import { useGetMyPaymentsQuery } from "../../redux/api/paymentApiSlice";
-// Component Imports
-import Spinner from "../../components/Spinner";
-import ToastAlert from "../../components/ToastAlert/ToastAlert";
-import AppContainer from "../../components/ui/AppContainer";
-import AppButton from "../../components/ui/AppButton";
 // Utils Imports
 import { convertToFormattedDate } from "../../utils";
+// Component Imports
+import AppContainer from "../../components/ui/AppContainer";
+import AppCard from "../../components/ui/AppCard";
+import AppButton from "../../components/ui/AppButton";
+import { Heading } from "../../components/Heading";
+import OverlayLoader from "../../components/Spinner/OverlayLoader";
+
+const getListingStatusBadge = (status: string) => {
+  if (status === "pending_payment") {
+    return (
+      <Box
+        sx={{
+          background: "#fef3c7",
+          color: "#92400e",
+          borderRadius: "999px",
+          padding: "6px 12px",
+          fontSize: "12px",
+          display: "inline-block",
+        }}
+      >
+        Pending Payment
+      </Box>
+    );
+  }
+
+  if (status === "early_access") {
+    return (
+      <Box
+        sx={{
+          background: "#dbeafe",
+          color: "#1e40af",
+          borderRadius: "999px",
+          padding: "6px 12px",
+          fontSize: "12px",
+          display: "inline-block",
+        }}
+      >
+        Early Access
+      </Box>
+    );
+  }
+
+  if (status === "active") {
+    return (
+      <Box
+        sx={{
+          background: "#dcfce7",
+          color: "#166534",
+          borderRadius: "999px",
+          padding: "6px 12px",
+          fontSize: "12px",
+          display: "inline-block",
+        }}
+      >
+        Active
+      </Box>
+    );
+  }
+
+  return (
+    <Box
+      sx={{
+        background: "#f1f5f9",
+        color: "#64748b",
+        borderRadius: "999px",
+        padding: "6px 12px",
+        fontSize: "12px",
+        display: "inline-block",
+      }}
+    >
+      Inactive
+    </Box>
+  );
+};
+
+const getPaymentStatusBadge = (status: string) => {
+  if (status === "pending") {
+    return (
+      <Box
+        sx={{
+          background: "#fef3c7",
+          color: "#92400e",
+          borderRadius: "999px",
+          padding: "6px 12px",
+          fontSize: "12px",
+          display: "inline-block",
+        }}
+      >
+        Pending
+      </Box>
+    );
+  }
+
+  if (status === "success") {
+    return (
+      <Box
+        sx={{
+          background: "#dcfce7",
+          color: "#166534",
+          borderRadius: "999px",
+          padding: "6px 12px",
+          fontSize: "12px",
+          display: "inline-block",
+        }}
+      >
+        Success
+      </Box>
+    );
+  }
+
+  return (
+    <Box
+      sx={{
+        background: "#fee2e2",
+        color: "#991b1b",
+        borderRadius: "999px",
+        padding: "6px 12px",
+        fontSize: "12px",
+        display: "inline-block",
+      }}
+    >
+      Failed
+    </Box>
+  );
+};
 
 const LandlordDashboard = () => {
-  const navigate = useNavigate();
   const userId = useTypedSelector(selectedUserId);
+  const navigate = useNavigate();
 
-  const { data: listingsData, isLoading: listingsLoading } =
-    useGetListingQuery(userId, { skip: !userId });
-  const { data: paymentsData, isLoading: paymentsLoading } =
-    useGetMyPaymentsQuery();
+  const { data: listingsData, isLoading: listingsLoading } = useGetListingQuery(userId);
   const [deleteListing, { isLoading: isDeleting }] = useDeleteListingMutation();
 
-  const [toast, setToast] = useState({
-    message: "",
-    appearence: false,
-    type: "",
-  });
-
-  const handleCloseToast = () => {
-    setToast({ ...toast, appearence: false });
-  };
-
-  const handleDelete = async (id: string) => {
-    try {
-      const listing: any = await deleteListing(id);
-      if (listing?.data === null) {
-        setToast({
-          ...toast,
-          message: "Listing Deleted Successfully",
-          appearence: true,
-          type: "success",
-        });
-      }
-      if (listing?.error) {
-        setToast({
-          ...toast,
-          message: listing?.error?.message,
-          appearence: true,
-          type: "error",
-        });
-      }
-    } catch (error) {
-      console.error("Delete Listing Error", error);
-      setToast({
-        ...toast,
-        message: "Something went wrong",
-        appearence: true,
-        type: "error",
-      });
-    }
-  };
-
-  const getListingStatusChip = (status: string) => {
-    if (status === "pending_payment") {
-      return <Chip color="warning" label="Pending Payment" size="small" />;
-    }
-    if (status === "early_access") {
-      return <Chip color="info" label="Early Access" size="small" />;
-    }
-    if (status === "active") {
-      return <Chip color="success" label="Active" size="small" />;
-    }
-    if (status === "inactive") {
-      return <Chip color="default" label="Inactive" size="small" />;
-    }
-    return <Chip color="default" label={status || "Unknown"} size="small" />;
-  };
-
-  const getPaymentStatusChip = (status: string) => {
-    if (status === "pending") {
-      return <Chip color="warning" label="Pending" size="small" />;
-    }
-    if (status === "success") {
-      return <Chip color="success" label="Success" size="small" />;
-    }
-    if (status === "failed") {
-      return <Chip color="error" label="Failed" size="small" />;
-    }
-    return <Chip color="default" label={status || "Unknown"} size="small" />;
-  };
+  const { data: paymentsData, isLoading: paymentsLoading } =
+    useGetMyPaymentsQuery(undefined);
 
   return (
     <Box sx={{ marginTop: "50px" }}>
       <AppContainer>
-        <Typography variant="h5">Landlord Dashboard</Typography>
-        <Typography variant="body2" color="text.secondary">
-          Landlord account
-        </Typography>
-
         <Box
           sx={{
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
-            mt: 4,
-            mb: 1,
+            marginBottom: "16px",
           }}
         >
-          <Typography variant="h6">My Listings</Typography>
+          <Heading>My Listings</Heading>
           <AppButton onClick={() => navigate("/create-listing")}>
             + Create New Listing
           </AppButton>
         </Box>
 
         {listingsLoading ? (
-          <Spinner />
+          <OverlayLoader />
+        ) : listingsData?.data?.length === 0 ? (
+          <AppCard
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              width: "100%",
+              padding: "20px",
+              margin: "20px 0",
+              justifyContent: "center",
+              flexDirection: "column",
+              gap: 1,
+            }}
+          >
+            No listings yet. Create your first listing.
+            <AppButton onClick={() => navigate("/create-listing")}>
+              Create Listing
+            </AppButton>
+          </AppCard>
         ) : (
-          <TableContainer component={Paper}>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Listing Name</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell>Published Date</TableCell>
-                  <TableCell>Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {listingsData?.data?.map((listing: any) => (
-                  <TableRow key={listing._id}>
-                    <TableCell>{listing.name}</TableCell>
-                    <TableCell>{getListingStatusChip(listing.status)}</TableCell>
-                    <TableCell>
-                      {listing.status === "pending_payment"
-                        ? "—"
-                        : convertToFormattedDate(
-                            listing.publishedAt || listing.createdAt
-                          )}
-                    </TableCell>
-                    <TableCell>
-                      {listing.status === "pending_payment" && (
-                        <AppButton
-                          size="small"
-                          color="warning"
-                          onClick={() => navigate(`/listings/${listing._id}/pay`)}
-                        >
-                          Pay Now
-                        </AppButton>
-                      )}
-                      {(listing.status === "early_access" ||
-                        listing.status === "active") && (
-                        <>
-                          <AppButton
-                            size="small"
-                            variant="outlined"
-                            onClick={() => navigate(`/listings/${listing._id}`)}
-                          >
-                            Edit
-                          </AppButton>
-                          <AppButton
-                            size="small"
-                            variant="outlined"
-                            color="error"
-                            disabled={isDeleting}
-                            onClick={() => handleDelete(listing._id)}
-                            sx={{ ml: 1 }}
-                          >
-                            Delete
-                          </AppButton>
-                        </>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
+          <>
+            {listingsData?.data?.map((item: any) => (
+              <AppCard
+                sx={{
+                  width: "100%",
+                  padding: "20px",
+                  margin: "20px 0",
+                }}
+                key={item?._id}
+              >
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: 2,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <Box
+                    sx={{
+                      fontSize: "18px",
+                      fontWeight: 600,
+                      color: "#49454F",
+                      "&:hover": {
+                        cursor: "pointer",
+                        textDecoration: "underline",
+                      },
+                    }}
+                    onClick={() => {
+                      navigate(`/listing/${item?._id}`);
+                    }}
+                  >
+                    {item?.name}
+                  </Box>
+                  {getListingStatusBadge(item?.status)}
+                </Box>
+
+                <Box
+                  sx={{
+                    color: "#64748b",
+                    fontSize: "13px",
+                    marginTop: "6px",
+                  }}
+                >
+                  Published: {convertToFormattedDate(item?.publishedAt ?? item?.createdAt)}
+                </Box>
+
+                <Box
+                  sx={{
+                    marginTop: "12px",
+                    display: "flex",
+                    gap: 1,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  {item?.status === "pending_payment" ? (
+                    <AppButton
+                      variant="contained"
+                      onClick={() => navigate(`/listings/${item?._id}/pay`)}
+                    >
+                      Pay Now
+                    </AppButton>
+                  ) : (
+                    <>
+                      <AppButton
+                        variant="outlined"
+                        color="success"
+                        onClick={() => navigate(`/listings/${item?._id}`)}
+                      >
+                        Edit
+                      </AppButton>
+                      <AppButton
+                        variant="outlined"
+                        color="error"
+                        onClick={() => deleteListing(item?._id)}
+                        disabled={isDeleting}
+                      >
+                        Delete
+                      </AppButton>
+                    </>
+                  )}
+                </Box>
+              </AppCard>
+            ))}
+          </>
         )}
 
-        <Typography variant="h6" sx={{ mt: 5, mb: 1 }}>
+        <Heading sx={{ marginTop: "40px", marginBottom: "16px" }}>
           Payment History
-        </Typography>
+        </Heading>
 
         {paymentsLoading ? (
-          <Spinner />
+          <Box>Loading...</Box>
         ) : paymentsData?.data?.length === 0 ? (
-          <Typography color="text.secondary">No payments yet.</Typography>
+          <AppCard sx={{ width: "100%", padding: "16px 20px", margin: "12px 0" }}>
+            No payment history yet.
+          </AppCard>
         ) : (
-          <TableContainer component={Paper}>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Date</TableCell>
-                  <TableCell>Listing</TableCell>
-                  <TableCell>Amount</TableCell>
-                  <TableCell>Status</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {paymentsData?.data?.map((payment: any) => (
-                  <TableRow key={payment._id}>
-                    <TableCell>{convertToFormattedDate(payment.createdAt)}</TableCell>
-                    <TableCell>{payment.listing?.name ?? "—"}</TableCell>
-                    <TableCell>USD {payment.amount?.toFixed(2)}</TableCell>
-                    <TableCell>{getPaymentStatusChip(payment.status)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
+          <>
+            {paymentsData?.data?.map((payment: any) => (
+              <AppCard
+                sx={{ width: "100%", padding: "16px 20px", margin: "12px 0" }}
+                key={payment?._id}
+              >
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    flexWrap: "wrap",
+                    gap: 1,
+                  }}
+                >
+                  <Box>{convertToFormattedDate(payment?.createdAt)}</Box>
+                  <Box>{payment?.listing?.name ?? "—"}</Box>
+                  <Box>USD {payment?.amount}</Box>
+                  {getPaymentStatusBadge(payment?.status)}
+                </Box>
+              </AppCard>
+            ))}
+          </>
         )}
       </AppContainer>
-
-      <ToastAlert
-        appearence={toast.appearence}
-        type={toast.type}
-        message={toast.message}
-        handleClose={handleCloseToast}
-      />
     </Box>
   );
 };

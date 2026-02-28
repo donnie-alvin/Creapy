@@ -11,3 +11,7 @@ export const MONETIZATION_MODE: MonetizationMode =
 export const isPremiumTenant = (user: any): boolean => {
   return user?.premiumExpiry && new Date(user.premiumExpiry) > new Date();
 };
+
+export const isLandlordPaidUser = (user: any): boolean => {
+  return user?.premiumExpiry && new Date(user.premiumExpiry) > new Date();
+};

@@ -1,7 +1,7 @@
 // React Imports
 import { useParams } from "react-router-dom";
 // MUI Imports
-import { Box, Grid, Divider, Chip } from "@mui/material";
+import { Box, Grid, Divider } from "@mui/material";
 // Swiper Imports
 import { Swiper, SwiperSlide } from "swiper/react";
 import SwiperCore from "swiper";
@@ -150,14 +150,26 @@ const ViewListing = () => {
                       </>
                     )}
                     {data?.data?.status === "early_access" ? (
-                      <Chip label="Early Access" color="info" size="small" />
+                      <Box
+                        sx={{
+                          background: "#dbeafe",
+                          color: "#1e40af",
+                          fontSize: "11px",
+                          fontWeight: 700,
+                          borderRadius: "999px",
+                          padding: "3px 10px",
+                          display: "inline-block",
+                        }}
+                      >
+                        ⚡ Early Access
+                      </Box>
                     ) : null}
                   </Box>
                   {data?.data?.status === "early_access" ? (
                     <Box
                       sx={{
                         fontSize: "13px",
-                        color: "text.secondary",
+                        color: "#1e40af",
                         marginTop: 1,
                       }}
                     >
