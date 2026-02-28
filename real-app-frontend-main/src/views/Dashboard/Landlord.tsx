@@ -36,7 +36,7 @@ const LandlordDashboard = () => {
   const userId = useTypedSelector(selectedUserId);
 
   const { data: listingsData, isLoading: listingsLoading } =
-    useGetListingQuery(userId);
+    useGetListingQuery(userId, { skip: !userId });
   const { data: paymentsData, isLoading: paymentsLoading } =
     useGetMyPaymentsQuery();
   const [deleteListing, { isLoading: isDeleting }] = useDeleteListingMutation();
@@ -154,7 +154,9 @@ const LandlordDashboard = () => {
                     <TableCell>
                       {listing.status === "pending_payment"
                         ? "—"
-                        : convertToFormattedDate(listing.createdAt)}
+                        : convertToFormattedDate(
+                            listing.publishedAt || listing.createdAt
+                          )}
                     </TableCell>
                     <TableCell>
                       {listing.status === "pending_payment" && (
