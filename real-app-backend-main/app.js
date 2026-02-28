@@ -12,9 +12,9 @@ const savedSearchRouter = require("./routes/savedSearchRoutes");
 const paymentRouter = require("./routes/paymentRoutes");
 const uploadRouter = require("./routes/uploadRoutes");
 const webhookRouter = require("./routes/webhookRoutes");
+const { globalLimiter } = require("./middleware/rateLimiter");
 
 const listingRoutes = require("./routes/listingRoutes");
-
 
 const corsOptions = {
   origin: "*",
@@ -24,6 +24,7 @@ const corsOptions = {
 
 const app = express();
 app.use(cors(corsOptions));
+app.use(globalLimiter);
 
 if (process.env.NODE_ENV === "development") {
   app.use(morgan("dev"));

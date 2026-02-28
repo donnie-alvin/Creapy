@@ -5,9 +5,11 @@ const path = require("node:path");
 
 const paymentController = require("../controllers/paymentController");
 const webhookController = require("../controllers/webhookController");
+const listingController = require("../controllers/listingController");
 const Payment = require("../models/paymentModel");
 const Listing = require("../models/listingModel");
 const User = require("../models/userModel");
+const { isPremiumTenant } = require("../utils/monetization");
 
 const invokeController = (handler, req) =>
   new Promise((resolve, reject) => {
@@ -52,22 +54,53 @@ const invokeWebhookHandler = (handler, req) =>
   });
 
 test("listing routes keep browse/view public and publish landlord-only", async () => {
-  const file = fs.readFileSync(
-    path.join(__dirname, "..", "routes", "listingRoutes.js"),
-    "utf8"
+  const listingRoutes = require("../routes/listingRoutes");
+  const authController = require("../controllers/authController");
+
+  const stack = listingRoutes.stack;
+  const routeLayers = stack.filter((layer) => layer.route);
+
+  const publicListLayer = routeLayers.find(
+    (layer) => layer.route.path === "/" && layer.route.methods.get
+  );
+  const publicDetailLayer = routeLayers.find(
+    (layer) => layer.route.path === "/listing/:id" && layer.route.methods.get
+  );
+  const publicLegacyLayer = routeLayers.find(
+    (layer) => layer.route.path === "/:id" && layer.route.methods.get
+  );
+  const createLayer = routeLayers.find(
+    (layer) => layer.route.path === "/" && layer.route.methods.post
+  );
+  const updateLayer = routeLayers.find(
+    (layer) => layer.route.path === "/:id" && layer.route.methods.put
+  );
+  const protectIndex = stack.findIndex(
+    (layer) => layer.handle === authController.protect
   );
 
-  assert.ok(file.includes('router.get("/", listingController.getListings);'));
-  assert.ok(file.includes('router.get("/:id", listingController.getListing);'));
-  assert.ok(file.includes('authController.requireRole("landlord")'));
-  assert.ok(file.includes("listingController.createListing"));
-  assert.ok(file.includes("listingController.updateListing"));
+  assert.ok(publicListLayer);
+  assert.ok(publicDetailLayer);
+  assert.ok(publicLegacyLayer);
+  assert.ok(createLayer);
+  assert.ok(updateLayer);
+  assert.ok(protectIndex > -1);
 
-  const publicListIndex = file.indexOf('router.get("/", listingController.getListings);');
-  const publicDetailIndex = file.indexOf('router.get("/:id", listingController.getListing);');
-  const protectIndex = file.indexOf("router.use(authController.protect);");
+  const publicListHandlers = publicListLayer.route.stack.map((layer) => layer.handle);
+  const publicDetailHandlers = publicDetailLayer.route.stack.map(
+    (layer) => layer.handle
+  );
+
+  assert.ok(publicListHandlers.includes(authController.optionalAuth));
+  assert.ok(publicDetailHandlers.includes(authController.optionalAuth));
+
+  const publicListIndex = stack.indexOf(publicListLayer);
+  const publicDetailIndex = stack.indexOf(publicDetailLayer);
+  const createIndex = stack.indexOf(createLayer);
+
   assert.ok(publicListIndex > -1 && publicListIndex < protectIndex);
   assert.ok(publicDetailIndex > -1 && publicDetailIndex < protectIndex);
+  assert.ok(createIndex > -1 && protectIndex < createIndex);
 });
 
 test("tenant saved searches no longer require premium middleware", async () => {
@@ -142,16 +175,16 @@ test("tenant can initiate premium subscription payment", async () => {
 });
 
 test("webhook ignores payments with invalid hash", async () => {
-  const originalGetProvider = require("../utils/paymentProvider").getProvider;
-  require("../utils/paymentProvider").getProvider = () => ({
-    verifyWebhook: () => ({ valid: false, transactionRef: "tx_1" }),
-  });
+  const paymentProvider = require("../utils/paymentProvider");
+  const provider = paymentProvider.getProvider();
+  const originalVerifyWebhook = provider.verifyWebhook;
+  provider.verifyWebhook = async () => ({ valid: false, transactionRef: "tx_1" });
 
   const result = await invokeWebhookHandler(webhookController.handlePaynowWebhook, {
     body: { reference: "tx_1", status: "paid" },
   });
 
-  require("../utils/paymentProvider").getProvider = originalGetProvider;
+  provider.verifyWebhook = originalVerifyWebhook;
 
   assert.equal(result.statusCode, 200);
   assert.equal(result.body.status, "ignored");
@@ -159,17 +192,17 @@ test("webhook ignores payments with invalid hash", async () => {
 });
 
 test("webhook marks failed payments as failed without granting access", async () => {
-  const originalGetProvider = require("../utils/paymentProvider").getProvider;
+  const paymentProvider = require("../utils/paymentProvider");
+  const provider = paymentProvider.getProvider();
+  const originalVerifyWebhook = provider.verifyWebhook;
   const originalFindOneAndUpdate = Payment.findOneAndUpdate;
 
   let updateCall = null;
 
-  require("../utils/paymentProvider").getProvider = () => ({
-    verifyWebhook: () => ({
-      valid: true,
-      transactionRef: "tx_failed",
-      status: "failed",
-    }),
+  provider.verifyWebhook = async () => ({
+    valid: true,
+    transactionRef: "tx_failed",
+    status: "failed",
   });
 
   Payment.findOneAndUpdate = async (filter, update) => {
@@ -181,12 +214,151 @@ test("webhook marks failed payments as failed without granting access", async ()
     body: { reference: "tx_failed", status: "failed" },
   });
 
-  require("../utils/paymentProvider").getProvider = originalGetProvider;
+  provider.verifyWebhook = originalVerifyWebhook;
   Payment.findOneAndUpdate = originalFindOneAndUpdate;
 
   assert.equal(result.statusCode, 200);
   assert.equal(result.body.status, "ok");
   assert.equal(updateCall.update.status, "failed");
-  assert.equal(updateCall.update.webhookVerified, true);
+  assert.equal(updateCall.update.webhookVerified, undefined);
 });
 
+test("isPremiumTenant returns true only for active premium expiry", () => {
+  assert.equal(
+    isPremiumTenant({ premiumExpiry: new Date(Date.now() + 86400000) }),
+    true
+  );
+  assert.equal(Boolean(isPremiumTenant({ premiumExpiry: null })), false);
+  assert.equal(
+    isPremiumTenant({ premiumExpiry: new Date(Date.now() - 1000) }),
+    false
+  );
+});
+
+test("webhook idempotency returns ok on duplicate webhook payloads", async () => {
+  const paymentProvider = require("../utils/paymentProvider");
+  const provider = paymentProvider.getProvider();
+  const originalVerifyWebhook = provider.verifyWebhook;
+  const originalFindOne = Payment.findOne;
+  const originalFindByIdAndUpdate = Payment.findByIdAndUpdate;
+  const originalListingUpdate = Listing.findByIdAndUpdate;
+  const originalUserFindById = User.findById;
+  const originalUserUpdate = User.findByIdAndUpdate;
+
+  provider.verifyWebhook = async () => ({
+    valid: true,
+    transactionRef: "tx_idem",
+    status: "paid",
+  });
+
+  let findOneCalls = 0;
+  let claimCalls = 0;
+  Payment.findOne = async () => {
+    findOneCalls += 1;
+    if (findOneCalls === 1) {
+      return { _id: "pay_idem", webhookVerified: false };
+    }
+    return { _id: "pay_idem", webhookVerified: true };
+  };
+  Payment.findByIdAndUpdate = async () => {
+    claimCalls += 1;
+    return {
+      _id: "pay_idem",
+      webhookVerified: true,
+      status: "success",
+      type: "noop",
+    };
+  };
+  Listing.findByIdAndUpdate = async () => {
+    throw new Error("unexpected listing side effect");
+  };
+  User.findById = async () => {
+    throw new Error("unexpected user lookup");
+  };
+  User.findByIdAndUpdate = async () => {
+    throw new Error("unexpected user update");
+  };
+
+  const req = {
+    body: { reference: "tx_idem", status: "paid" },
+  };
+
+  const first = await invokeWebhookHandler(webhookController.handlePaynowWebhook, req);
+  const second = await invokeWebhookHandler(webhookController.handlePaynowWebhook, req);
+
+  provider.verifyWebhook = originalVerifyWebhook;
+  Payment.findOne = originalFindOne;
+  Payment.findByIdAndUpdate = originalFindByIdAndUpdate;
+  Listing.findByIdAndUpdate = originalListingUpdate;
+  User.findById = originalUserFindById;
+  User.findByIdAndUpdate = originalUserUpdate;
+
+  assert.equal(first.statusCode, 200);
+  assert.equal(first.body.status, "ok");
+  assert.equal(second.statusCode, 200);
+  assert.equal(second.body.status, "ok");
+  assert.equal(second.body.reason, "already processed");
+  assert.equal(claimCalls, 1);
+  assert.equal(findOneCalls, 2);
+});
+
+test("getListings applies early_access visibility for premium users only", async () => {
+  const originalUpdateMany = Listing.updateMany;
+  const originalFind = Listing.find;
+
+  const capturedFilters = [];
+  Listing.updateMany = async () => ({ modifiedCount: 0 });
+  Listing.find = (filter) => {
+    capturedFilters.push(filter);
+    return {
+      skip: () => ({
+        limit: () => ({
+          sort: async () => [],
+        }),
+      }),
+    };
+  };
+
+  await invokeController(listingController.getListings, {
+    query: {},
+    user: { premiumExpiry: new Date(Date.now() + 86400000) },
+  });
+
+  await invokeController(listingController.getListings, {
+    query: {},
+  });
+
+  Listing.updateMany = originalUpdateMany;
+  Listing.find = originalFind;
+
+  assert.deepEqual(capturedFilters[0].status, { $in: ["active", "early_access"] });
+  assert.equal(capturedFilters[1].status, "active");
+});
+
+test("promoteExpiredEarlyAccess transitions expired listings to active", async () => {
+  const originalUpdateMany = Listing.updateMany;
+  const originalFind = Listing.find;
+
+  const updateCalls = [];
+  Listing.updateMany = async (filter, update) => {
+    updateCalls.push({ filter, update });
+    return { modifiedCount: 1 };
+  };
+  Listing.find = () => ({
+    skip: () => ({
+      limit: () => ({
+        sort: async () => [],
+      }),
+    }),
+  });
+
+  await invokeController(listingController.getListings, { query: {} });
+
+  Listing.updateMany = originalUpdateMany;
+  Listing.find = originalFind;
+
+  assert.equal(updateCalls.length > 0, true);
+  assert.deepEqual(updateCalls[0].filter.status, "early_access");
+  assert.equal(updateCalls[0].filter.earlyAccessUntil.$lt instanceof Date, true);
+  assert.deepEqual(updateCalls[0].update, { $set: { status: "active" } });
+});

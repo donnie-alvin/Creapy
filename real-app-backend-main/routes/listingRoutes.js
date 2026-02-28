@@ -2,6 +2,8 @@ const express = require("express");
 // Custom imports
 const authController = require("../controllers/authController");
 const listingController = require("../controllers/listingController");
+const validate = require("../middleware/validate");
+const { createListingValidators } = require("../middleware/listingValidators");
 
 const router = express.Router();
 
@@ -24,6 +26,8 @@ router.use(authController.protect);
 router.post(
   "/",
   authController.requireRole("landlord"),
+  createListingValidators,
+  validate,
   listingController.createListing
 );
 

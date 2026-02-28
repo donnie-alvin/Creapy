@@ -5,7 +5,7 @@
  * It handles payment initiation and webhook verification using the Paynow SDK.
  */
 
-const Paynow = require('paynow');
+const { Paynow } = require('paynow');
 const AppError = require('../appError');
 
 // Initialize Paynow with credentials from environment

@@ -6,6 +6,7 @@ const Listing = require("../models/listingModel");
 
 const originalFind = Listing.find;
 const originalAggregate = Listing.aggregate;
+const originalUpdateMany = Listing.updateMany;
 
 const invokeController = (handler, req) =>
   new Promise((resolve, reject) => {
@@ -30,6 +31,7 @@ const invokeController = (handler, req) =>
 test.afterEach(() => {
   Listing.find = originalFind;
   Listing.aggregate = originalAggregate;
+  Listing.updateMany = originalUpdateMany;
 });
 
 test("getHomeHighlighted returns active listings with default limit", async () => {
@@ -37,6 +39,7 @@ test("getHomeHighlighted returns active listings with default limit", async () =
   let capturedFilter = null;
   let capturedSort = null;
   let capturedLimit = null;
+  Listing.updateMany = async () => ({ modifiedCount: 0 });
 
   Listing.find = (filter) => {
     capturedFilter = filter;
@@ -68,6 +71,7 @@ test("getHomeHighlighted returns active listings with default limit", async () =
 
 test("getHomeHighlighted respects custom limit", async () => {
   let capturedLimit = null;
+  Listing.updateMany = async () => ({ modifiedCount: 0 });
 
   Listing.find = () => ({
     sort: () => ({
@@ -93,6 +97,7 @@ test("getHomeGroupedByLocation builds grouped response with limits", async () =>
     },
   ];
   let pipeline = null;
+  Listing.updateMany = async () => ({ modifiedCount: 0 });
 
   Listing.aggregate = async (stages) => {
     pipeline = stages;
@@ -133,4 +138,3 @@ test("getHomeGroupedByLocation builds grouped response with limits", async () =>
     pipeline.some((stage) => stage.$limit === 3)
   );
 });
-
