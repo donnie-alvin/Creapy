@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import Home from "./views/Home";
 import NotFound from "./views/NotFound";
 import Login from "./views/Login";
@@ -9,7 +9,6 @@ import Header from "./components/Header";
 import PublicRoutes from "./routes/PublicRoutes";
 import ProtectedRoutes from "./routes/ProtectedRoutes";
 import CreateListing from "./views/Listing";
-import AllListings from "./views/Listing/components/allListings";
 import ViewListing from "./views/Listing/components/viewListing";
 import SearchPage from "./views/Search";
 import SavedSearches from "./views/SavedSearches";
@@ -95,7 +94,7 @@ function App() {
           path="/listings"
           element={
             <ProtectedRoutes allowedRoles={["landlord"]}>
-              <AllListings />
+              <Navigate to="/dashboard/landlord" replace />
             </ProtectedRoutes>
           }
         />
