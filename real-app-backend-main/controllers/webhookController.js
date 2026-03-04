@@ -35,30 +35,16 @@ exports.handlePaynowWebhook = async (req, res) => {
       return res.status(200).json({ status: "ok" });
     }
 
-    // Step 3 — Check if payment exists (Comment 2)
-    const existingPayment = await Payment.findOne({
-      transactionRef: result.transactionRef,
-    });
-
-    if (!existingPayment) {
-      return res.status(200).json({ status: "ignored", reason: "unknown reference" });
-    }
-
-    // Step 4 — Check if already processed (Comment 2)
-    if (existingPayment.webhookVerified === true) {
-      return res.status(200).json({ status: "ok", reason: "already processed" });
-    }
-
-    // Step 5 — Atomic idempotency claim for this specific payment
-    // Use the actual payment ID to ensure atomicity
-    const claimedPayment = await Payment.findByIdAndUpdate(
-      existingPayment._id,
-      { webhookVerified: true, status: "success" },
+    // Step 3 — Atomic idempotency claim
+    // Claim succeeds only once for a given transactionRef when webhookVerified is false.
+    const claimedPayment = await Payment.findOneAndUpdate(
+      { transactionRef: result.transactionRef, webhookVerified: false },
+      { $set: { webhookVerified: true, status: "success" } },
       { new: true }
     );
 
     if (!claimedPayment) {
-      // This should rarely happen, but if it does, treat as already processed
+      // Unknown transactionRef or already processed; both are safe no-ops.
       return res.status(200).json({ status: "ok", reason: "already processed" });
     }
 

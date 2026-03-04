@@ -29,6 +29,7 @@ services:
       - key: PAYNOW_RESULT_URL
         sync: false
       - key: PAYNOW_RETURN_URL
+        # Set to your Amplify frontend URL, e.g. https://<branch>.<appid>.amplifyapp.com/payment-complete
         sync: false
       - key: LISTING_FEE_AMOUNT
         sync: false
@@ -57,4 +58,5 @@ services:
       - key: R2_PUBLIC_BASE_URL
         sync: false
       - key: FRONTEND_URL
+        # Set to your Amplify frontend URL, e.g. https://<branch>.<appid>.amplifyapp.com
         sync: false

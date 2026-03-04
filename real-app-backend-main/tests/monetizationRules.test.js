@@ -251,8 +251,10 @@ test("webhook idempotency returns ok on duplicate webhook payloads", async () =>
   });
 
   let claimCalls = 0;
-  Payment.findOneAndUpdate = async () => {
+  const claimArgs = [];
+  Payment.findOneAndUpdate = async (filter, update) => {
     claimCalls += 1;
+    claimArgs.push({ filter, update });
     if (claimCalls === 1) {
       return {
         _id: "pay_idem",
@@ -292,6 +294,12 @@ test("webhook idempotency returns ok on duplicate webhook payloads", async () =>
   assert.equal(second.body.status, "ok");
   assert.equal(second.body.reason, "already processed");
   assert.equal(claimCalls, 2);
+  assert.equal(claimArgs.length, 2);
+  claimArgs.forEach(({ filter, update }) => {
+    assert.equal(filter.transactionRef, "tx_idem");
+    assert.equal(filter.webhookVerified, false);
+    assert.deepEqual(update, { $set: { webhookVerified: true, status: "success" } });
+  });
 });
 
 test("getListings applies early_access visibility for premium users only", async () => {
