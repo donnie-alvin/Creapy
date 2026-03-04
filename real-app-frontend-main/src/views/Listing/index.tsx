@@ -311,8 +311,7 @@ const CreateListing = () => {
         if (!newListingId) {
           setToast({
             ...toast,
-            message:
-              "Listing created but could not determine listing ID. Please check your dashboard.",
+            message: "Could not determine listing ID. Please try again.",
             appearence: true,
             type: "error",
           });
