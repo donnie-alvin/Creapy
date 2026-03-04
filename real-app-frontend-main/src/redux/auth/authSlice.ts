@@ -2,7 +2,6 @@
 import { createSlice } from "@reduxjs/toolkit";
 // Custom Imports
 import { RootState } from "../store";
-import { MONETIZATION_MODE, isPremiumTenant } from "../../config/monetization";
 
 const getInitialUser = () => {
   const localStorageItem = localStorage.getItem("user");
@@ -44,12 +43,6 @@ export const selectedUserPremiumExpiry = (state: RootState) =>
   state.auth?.user?.data?.user?.premiumExpiry;
 
 export const selectedCanPublishListing = (state: RootState) => {
-  const user = state.auth?.user?.data?.user;
-  const role = user?.role;
-
-  if (MONETIZATION_MODE !== "LANDLORD_PAID") {
-    return role === "landlord";
-  }
-
-  return role === "landlord" && isPremiumTenant(user);
+  const role = state.auth?.user?.data?.user?.role;
+  return role === 'landlord';
 };

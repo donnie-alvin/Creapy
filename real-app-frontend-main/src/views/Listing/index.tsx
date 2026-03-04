@@ -22,11 +22,9 @@ import {
   useUpdateListingMutation,
 } from "../../redux/api/listingApiSlice";
 import {
-  selectedCanPublishListing,
   selectedUserId,
   selectedUserRole,
 } from "../../redux/auth/authSlice";
-import { useGetMeQuery } from "../../redux/api/userApiSlice";
 // Hooks Imports
 import useTypedSelector from "../../hooks/useTypedSelector";
 // Custom Imports
@@ -40,7 +38,6 @@ import PrimaryPhoneInput from "../../components/PhoneInput";
 import AppContainer from "../../components/ui/AppContainer";
 import AppCard from "../../components/ui/AppCard";
 import AppButton from "../../components/ui/AppButton";
-import { MONETIZATION_MODE, isLandlordPaidUser } from "../../config/monetization";
 
 interface listingForm {
   name: string;
@@ -70,9 +67,6 @@ const CreateListing = () => {
   const { id } = useParams();
   const userId = useTypedSelector(selectedUserId);
   const userRole = useTypedSelector(selectedUserRole);
-  const canPublishFromStore = useTypedSelector(selectedCanPublishListing);
-  const authBlob = useTypedSelector((state: any) => state.auth?.user);
-  const { data: meData } = useGetMeQuery(undefined, { skip: !userId });
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [formValues, setFormValues] = useState<listingForm>({
     name: "",
@@ -105,20 +99,6 @@ const CreateListing = () => {
     appearence: false,
     type: "",
   });
-  const meUser = meData?.data?.user;
-  const mergedUser = {
-    ...(authBlob?.data?.user || {}),
-    ...(meUser || {}),
-  };
-  const canPublishWithFreshUser =
-    MONETIZATION_MODE !== "LANDLORD_PAID"
-      ? userRole === "landlord"
-      : userRole === "landlord" && isLandlordPaidUser(mergedUser);
-  const canPublish = canPublishFromStore || canPublishWithFreshUser;
-  const shouldShowLandlordPaywall =
-    userRole === "landlord" &&
-    MONETIZATION_MODE === "LANDLORD_PAID" &&
-    !canPublish;
 
   const handleCloseToast = () => {
     setToast({ ...toast, appearence: false });
@@ -209,15 +189,6 @@ const CreateListing = () => {
   };
 
   const listingHandler = async (data: listingForm) => {
-    if (shouldShowLandlordPaywall) {
-      setToast({
-        ...toast,
-        message: "Landlord subscription required to publish listings",
-        appearence: true,
-        type: "error",
-      });
-      return;
-    }
 
     const resolvedUserId = resolveUserId();
 
@@ -379,19 +350,6 @@ const CreateListing = () => {
         <Box sx={{ textAlign: "center" }}>
           <Heading>{id ? "Update" : "Create"} a Listing</Heading>
         </Box>
-        {shouldShowLandlordPaywall && (
-          <AppCard sx={{ marginTop: "16px", p: 2 }}>
-            <SubHeading>Subscription required to publish</SubHeading>
-            <Box sx={{ marginTop: "8px", color: "#334155" }}>
-              You can manage your account for free. Subscribe to publish listings.
-            </Box>
-            <Box sx={{ marginTop: "12px" }}>
-              <AppButton onClick={() => navigate("/profile")}>
-                Subscribe to Publish
-              </AppButton>
-            </Box>
-          </AppCard>
-        )}
         <AppCard sx={{ margin: "30px 0", p: { xs: 2, md: 3 } }}>
           <Formik
             initialValues={formValues}
@@ -936,17 +894,11 @@ const CreateListing = () => {
                             <AppButton
                               type="submit"
                               fullWidth
-                              disabled={
-                                isLoading ||
-                                updatingLoading ||
-                                shouldShowLandlordPaywall
-                              }
+                              disabled={isLoading || updatingLoading}
                               sx={{ margin: "0 0 20px 0" }}
                             >
                               {isLoading || updatingLoading ? (
                                 <DotLoader color="#fff" size={12} />
-                              ) : shouldShowLandlordPaywall ? (
-                                "Subscribe to Publish"
                               ) : (
                                 <>{id ? "Update Listing" : "Create Listing"}</>
                               )}
