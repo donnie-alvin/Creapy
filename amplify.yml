@@ -1,0 +1,43 @@
+applications:
+  - appRoot: real-app-frontend-main
+    frontend:
+      phases:
+        preBuild:
+          commands:
+            - npm ci
+        build:
+          commands:
+            - npm run build
+      artifacts:
+        baseDirectory: build
+        files:
+          - "**/*"
+      cache:
+        paths:
+          - node_modules/**/*
+      redirects:
+        - source: </^[^.]+$|\.(?!(css|gif|ico|jpg|js|png|txt|svg|woff|woff2|ttf|map|json|webp)$)([^.]+$)/>
+          target: /index.html
+          status: "200"
+  - appRoot: real-app-backend-main
+    frontend:
+      phases:
+        preBuild:
+          commands:
+            - nvm install 20 && nvm use 20
+            - npm ci
+        build:
+          commands:
+            - rm -rf .amplify-hosting
+            - mkdir -p .amplify-hosting/compute/default
+            - cp deploy-manifest.json .amplify-hosting/deploy-manifest.json
+            - rsync -a --exclude node_modules --exclude .amplify-hosting ./ .amplify-hosting/compute/default/
+            - npm ci --omit=dev --prefix .amplify-hosting/compute/default
+      artifacts:
+        baseDirectory: .amplify-hosting
+        files:
+          - "**/*"
+      cache:
+        paths:
+          - node_modules/**/*
+          - .amplify-hosting/compute/default/node_modules/**/*
