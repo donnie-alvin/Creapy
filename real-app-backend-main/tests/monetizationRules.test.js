@@ -239,8 +239,7 @@ test("webhook idempotency returns ok on duplicate webhook payloads", async () =>
   const paymentProvider = require("../utils/paymentProvider");
   const provider = paymentProvider.getProvider();
   const originalVerifyWebhook = provider.verifyWebhook;
-  const originalFindOne = Payment.findOne;
-  const originalFindByIdAndUpdate = Payment.findByIdAndUpdate;
+  const originalFindOneAndUpdate = Payment.findOneAndUpdate;
   const originalListingUpdate = Listing.findByIdAndUpdate;
   const originalUserFindById = User.findById;
   const originalUserUpdate = User.findByIdAndUpdate;
@@ -251,23 +250,18 @@ test("webhook idempotency returns ok on duplicate webhook payloads", async () =>
     status: "paid",
   });
 
-  let findOneCalls = 0;
   let claimCalls = 0;
-  Payment.findOne = async () => {
-    findOneCalls += 1;
-    if (findOneCalls === 1) {
-      return { _id: "pay_idem", webhookVerified: false };
-    }
-    return { _id: "pay_idem", webhookVerified: true };
-  };
-  Payment.findByIdAndUpdate = async () => {
+  Payment.findOneAndUpdate = async () => {
     claimCalls += 1;
-    return {
-      _id: "pay_idem",
-      webhookVerified: true,
-      status: "success",
-      type: "noop",
-    };
+    if (claimCalls === 1) {
+      return {
+        _id: "pay_idem",
+        webhookVerified: true,
+        status: "success",
+        type: "noop",
+      };
+    }
+    return null;
   };
   Listing.findByIdAndUpdate = async () => {
     throw new Error("unexpected listing side effect");
@@ -287,8 +281,7 @@ test("webhook idempotency returns ok on duplicate webhook payloads", async () =>
   const second = await invokeWebhookHandler(webhookController.handlePaynowWebhook, req);
 
   provider.verifyWebhook = originalVerifyWebhook;
-  Payment.findOne = originalFindOne;
-  Payment.findByIdAndUpdate = originalFindByIdAndUpdate;
+  Payment.findOneAndUpdate = originalFindOneAndUpdate;
   Listing.findByIdAndUpdate = originalListingUpdate;
   User.findById = originalUserFindById;
   User.findByIdAndUpdate = originalUserUpdate;
@@ -298,8 +291,7 @@ test("webhook idempotency returns ok on duplicate webhook payloads", async () =>
   assert.equal(second.statusCode, 200);
   assert.equal(second.body.status, "ok");
   assert.equal(second.body.reason, "already processed");
-  assert.equal(claimCalls, 1);
-  assert.equal(findOneCalls, 2);
+  assert.equal(claimCalls, 2);
 });
 
 test("getListings applies early_access visibility for premium users only", async () => {
