@@ -1,7 +1,18 @@
 // React Imports
 import { useNavigate } from "react-router-dom";
 // MUI Imports
-import { Box } from "@mui/material";
+import {
+  Box,
+  IconButton,
+  Paper,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Tooltip,
+} from "@mui/material";
 // Hook Imports
 import useTypedSelector from "../../hooks/useTypedSelector";
 // Redux Imports
@@ -187,92 +198,113 @@ const LandlordDashboard = () => {
             </AppButton>
           </AppCard>
         ) : (
-          <>
-            {listingsData?.data?.map((item: any) => (
-              <AppCard
-                sx={{
-                  width: "100%",
-                  padding: "20px",
-                  margin: "20px 0",
-                }}
-                key={item?._id}
-              >
-                <Box
-                  sx={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    gap: 2,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <Box
-                    sx={{
-                      fontSize: "18px",
-                      fontWeight: 600,
-                      color: "#49454F",
-                      "&:hover": {
-                        cursor: "pointer",
-                        textDecoration: "underline",
-                      },
-                    }}
-                    onClick={() => {
-                      navigate(`/listing/${item?._id}`);
-                    }}
-                  >
-                    {item?.name}
-                  </Box>
-                  {getListingStatusBadge(item?.status)}
-                </Box>
-
-                <Box
-                  sx={{
-                    color: "#64748b",
-                    fontSize: "13px",
-                    marginTop: "6px",
-                  }}
-                >
-                  Published: {convertToFormattedDate(item?.publishedAt ?? item?.createdAt)}
-                </Box>
-
-                <Box
-                  sx={{
-                    marginTop: "12px",
-                    display: "flex",
-                    gap: 1,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  {item?.status === "pending_payment" ? (
-                    <AppButton
-                      variant="contained"
-                      onClick={() => navigate(`/listings/${item?._id}/pay`)}
-                    >
-                      Pay Now
-                    </AppButton>
-                  ) : (
-                    <>
-                      <AppButton
-                        variant="outlined"
-                        color="success"
-                        onClick={() => navigate(`/listings/${item?._id}`)}
+          <TableContainer
+            component={Paper}
+            sx={{
+              borderRadius: "12px",
+              boxShadow: "0 2px 8px rgba(15,23,42,0.06)",
+            }}
+          >
+            <Table>
+              <TableHead>
+                <TableRow sx={{ background: "#f8fafc" }}>
+                  {["Listing", "Location", "Status", "Published", "Actions"].map(
+                    (header) => (
+                      <TableCell
+                        key={header}
+                        sx={{
+                          fontWeight: 700,
+                          fontSize: "12px",
+                          color: "#6b7280",
+                          textTransform: "uppercase",
+                        }}
                       >
-                        Edit
-                      </AppButton>
-                      <AppButton
-                        variant="outlined"
-                        color="error"
-                        onClick={() => deleteListing(item?._id)}
-                        disabled={isDeleting}
-                      >
-                        Delete
-                      </AppButton>
-                    </>
+                        {header}
+                      </TableCell>
+                    )
                   )}
-                </Box>
-              </AppCard>
-            ))}
-          </>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {listingsData?.data?.map((item: any) => (
+                  <TableRow
+                    key={item?._id}
+                    hover
+                    sx={{ "&:last-child td": { border: 0 } }}
+                  >
+                    <TableCell>
+                      <Box
+                        sx={{
+                          fontWeight: 600,
+                          color: "#1F4D3A",
+                          cursor: "pointer",
+                          "&:hover": {
+                            textDecoration: "underline",
+                          },
+                        }}
+                        onClick={() => {
+                          navigate(`/listing/${item?._id}`);
+                        }}
+                      >
+                        {item?.name}
+                      </Box>
+                    </TableCell>
+                    <TableCell sx={{ color: "#6b7280", fontSize: "14px" }}>
+                      {item?.location ?? "—"}
+                    </TableCell>
+                    <TableCell>{getListingStatusBadge(item?.status)}</TableCell>
+                    <TableCell sx={{ color: "#6b7280", fontSize: "14px" }}>
+                      {item?.publishedAt
+                        ? convertToFormattedDate(item?.publishedAt)
+                        : "—"}
+                    </TableCell>
+                    <TableCell>
+                      {item?.status === "pending_payment" ? (
+                        <AppButton
+                          variant="contained"
+                          onClick={() => navigate(`/listings/${item?._id}/pay`)}
+                        >
+                          Pay Now
+                        </AppButton>
+                      ) : (
+                        <Box sx={{ display: "flex", gap: 1 }}>
+                          <Tooltip title="Edit">
+                            <IconButton
+                              size="small"
+                              onClick={() => navigate(`/listings/${item?._id}`)}
+                              sx={{
+                                border: "1px solid #e5e7eb",
+                                borderRadius: "8px",
+                              }}
+                            >
+                              ✏️
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Delete">
+                            <IconButton
+                              size="small"
+                              onClick={() => deleteListing(item?._id)}
+                              disabled={isDeleting}
+                              sx={{
+                                border: "1px solid #fecaca",
+                                borderRadius: "8px",
+                                color: "#dc2626",
+                                "&:hover": {
+                                  background: "#fef2f2",
+                                },
+                              }}
+                            >
+                              🗑️
+                            </IconButton>
+                          </Tooltip>
+                        </Box>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
         )}
 
         <Heading sx={{ marginTop: "40px", marginBottom: "16px" }}>
@@ -286,29 +318,53 @@ const LandlordDashboard = () => {
             No payment history yet.
           </AppCard>
         ) : (
-          <>
-            {paymentsData?.data?.map((payment: any) => (
-              <AppCard
-                sx={{ width: "100%", padding: "16px 20px", margin: "12px 0" }}
-                key={payment?._id}
-              >
-                <Box
-                  sx={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    flexWrap: "wrap",
-                    gap: 1,
-                  }}
-                >
-                  <Box>{convertToFormattedDate(payment?.createdAt)}</Box>
-                  <Box>{payment?.listing?.name ?? "—"}</Box>
-                  <Box>USD {payment?.amount}</Box>
-                  {getPaymentStatusBadge(payment?.status)}
-                </Box>
-              </AppCard>
-            ))}
-          </>
+          <TableContainer
+            component={Paper}
+            sx={{
+              borderRadius: "12px",
+              boxShadow: "0 2px 8px rgba(15,23,42,0.06)",
+            }}
+          >
+            <Table>
+              <TableHead>
+                <TableRow sx={{ background: "#f8fafc" }}>
+                  {["Date", "Listing", "Amount", "Status"].map((header) => (
+                    <TableCell
+                      key={header}
+                      sx={{
+                        fontWeight: 700,
+                        fontSize: "12px",
+                        color: "#6b7280",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      {header}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {paymentsData?.data?.map((payment: any) => (
+                  <TableRow
+                    key={payment?._id}
+                    hover
+                    sx={{ "&:last-child td": { border: 0 } }}
+                  >
+                    <TableCell sx={{ color: "#6b7280", fontSize: "14px" }}>
+                      {convertToFormattedDate(payment?.createdAt)}
+                    </TableCell>
+                    <TableCell sx={{ fontWeight: 500, fontSize: "14px" }}>
+                      {payment?.listing?.name ?? "—"}
+                    </TableCell>
+                    <TableCell sx={{ fontWeight: 600, fontSize: "14px" }}>
+                      USD {payment?.amount}
+                    </TableCell>
+                    <TableCell>{getPaymentStatusBadge(payment?.status)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
         )}
       </AppContainer>
     </Box>
