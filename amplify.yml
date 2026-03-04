@@ -1,3 +1,9 @@
+# Root-level Amplify monorepo spec.
+# This file satisfies the Amplify monorepo detection requirement.
+# Each subdirectory is deployed as a SEPARATE Amplify app in the Amplify Console:
+#   - Backend:  set App root directory = real-app-backend-main
+#   - Frontend: set App root directory = real-app-frontend-main
+# The per-app amplify.yml in each subdirectory governs the actual build.
 applications:
   - appRoot: real-app-frontend-main
     frontend:
