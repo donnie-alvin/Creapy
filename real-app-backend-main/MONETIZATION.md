@@ -7,30 +7,19 @@
 
 ## Business Rules
 
-- Public browse and listing detail endpoints are open:
-  - `GET /api/v1/listings`
-  - `GET /api/v1/listings/get`
-  - `GET /api/v1/listings/:id`
-  - `GET /api/v1/listings/listing/:id`
-- Tenants never pay and do not require premium flags for saved searches.
-- Landlords must have the landlord role to publish (create/update) listings.
+- Landlords pay a per-listing activation fee.
+- Tenants can subscribe to premium access for 30 days.
 
 ## Enforcement Points
 
-- Listing create/update routes:
-  - `POST /api/v1/listings`
-  - `PUT /api/v1/listings/:id`
-- Listing image signed uploads (folder `listings`) via:
-  - `GET /api/v1/uploads/r2-sign`
+- Listing `status` state machine: `pending_payment` -> `early_access` -> `active`
 
-## Subscription Update
+## Payment Endpoints
 
-- Endpoint: `POST /api/v1/payments/premium`
-- Alias: `POST /api/v1/payments/landlord-subscription`
-- On success sets:
-  - `landlordPlan = "pro"`
-  - `landlordPaidUntil` (default +30 days)
+- `POST /api/v1/payments/listing-fee`
+- `POST /api/v1/payments/tenant-premium`
+- `GET /api/v1/payments/mine`
 
-## User Subscription State Endpoint
+## Webhook
 
-- `GET /api/v1/users/me` returns authenticated user with role and landlord subscription fields.
+- `POST /webhooks/payment` (Paynow result URL)

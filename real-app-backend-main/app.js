@@ -3,7 +3,6 @@ const morgan = require("morgan");
 const colors = require("colors");
 const cors = require("cors");
 require("dotenv").config();
-const path = require("path");
 // Custom Imports
 const AppError = require("./utils/appError");
 const globalErrorHandler = require("./controllers/errorController");
@@ -50,17 +49,9 @@ app.use("/api/v1/listings", listingRoutes);
 app.use("/api/listings", listingRoutes);
 
 // PRODUCTION SETUP
-if (process.env.NODE_ENV === "production") {
-  const __dirname = path.resolve();
-  app.use(express.static("../client/build"));
-  app.get("*", (req, res) => {
-    res.sendFile(path.resolve(__dirname, "../client/build", "index.html"));
-  });
-} else {
-  app.get("/", (req, res) => {
-    res.send("Real Estate API is running...");
-  });
-}
+app.get("/", (req, res) => {
+  res.status(200).json({ status: "ok", message: "Creapy API is running." });
+});
 
 app.all("*", (req, res, next) => {
   next(new AppError(`Can't find ${req.originalUrl} on this server!`, 404));

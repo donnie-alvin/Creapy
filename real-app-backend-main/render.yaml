@@ -1,3 +1,9 @@
+# ============================================================
+# LEGACY FALLBACK — NOT CANONICAL
+# This file is retained as a rollback reference only.
+# The canonical production deployment is AWS Amplify backend.
+# See DEPLOYMENT.md for the authoritative setup guide.
+# ============================================================
 services:
   - type: web
     name: creapy-backend
