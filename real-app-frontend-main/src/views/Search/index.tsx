@@ -67,6 +67,7 @@ const SearchPage = () => {
   const dispatch = useDispatch();
   const searchText = useTypedSelector(selectedSearchText);
   const token = JSON.parse(localStorage.getItem("user") || "null")?.token;
+  const apiBase = (process.env.REACT_APP_API_URL || "").replace(/\/$/, "");
 
   const [sideBarData, setSideBarData] = useState<any>({
     searchTerm: "",
@@ -144,7 +145,7 @@ const SearchPage = () => {
       setLoading(true);
       setShowMore(false);
       const searchQuery = urlParams.toString();
-      const res = await fetch(`${process.env.REACT_APP_API_URL}listings/get?${searchQuery}`, {
+      const res = await fetch(`${apiBase}/listings/get?${searchQuery}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });
       const data = await res.json();
@@ -185,7 +186,7 @@ const SearchPage = () => {
     const urlParams = new URLSearchParams(window.location.search);
     urlParams.set("page", (page + 1).toString());
     const searchQuery = urlParams.toString();
-    const res = await fetch(`${process.env.REACT_APP_API_URL}listings/get?${searchQuery}`, {
+    const res = await fetch(`${apiBase}/listings/get?${searchQuery}`, {
       headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     });
     const data = await res.json();
