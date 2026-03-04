@@ -304,9 +304,21 @@ const CreateListing = () => {
           appearence: true,
           type: "success",
         });
-        setTimeout(() => {
-          navigate("/listings");
-        });
+        const newListingId =
+          listing?.data?.data?.listing?._id ||
+          listing?.data?.data?._id ||
+          listing?.data?._id;
+        if (!newListingId) {
+          setToast({
+            ...toast,
+            message:
+              "Listing created but could not determine listing ID. Please check your dashboard.",
+            appearence: true,
+            type: "error",
+          });
+          return;
+        }
+        navigate(`/listings/${newListingId}/pay`);
       }
       if (listing?.error) {
         setToast({
