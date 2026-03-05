@@ -24,6 +24,7 @@ const corsOptions = {
 const app = express();
 app.set("trust proxy", 1);
 app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
 app.use(globalLimiter);
 
 if (process.env.NODE_ENV === "development") {
