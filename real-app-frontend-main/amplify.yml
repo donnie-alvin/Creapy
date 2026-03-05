@@ -5,9 +5,9 @@ frontend:
       commands:
         - npm ci
     build:
-  commands:
-    - env | grep -E '^(REACT_APP_API_URL|REACT_APP_BACKEND_URL|REACT_APP_FIREBASE_API_KEY|REACT_APP_MONETIZATION_MODE|REACT_APP_LISTING_FEE_AMOUNT|REACT_APP_TENANT_PREMIUM_AMOUNT|DISABLE_ESLINT_PLUGIN)=' > .env.production
-    - npm run build
+      commands:
+        - env | grep -E '^(REACT_APP_API_URL|REACT_APP_BACKEND_URL|REACT_APP_FIREBASE_API_KEY|REACT_APP_MONETIZATION_MODE|REACT_APP_LISTING_FEE_AMOUNT|REACT_APP_TENANT_PREMIUM_AMOUNT|DISABLE_ESLINT_PLUGIN)=' > .env.production
+        - npm run build
   artifacts:
     baseDirectory: build
     files:

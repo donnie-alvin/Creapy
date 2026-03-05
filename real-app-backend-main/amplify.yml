@@ -6,9 +6,9 @@ frontend:
         - nvm install 20 && nvm use 20
         - npm ci
     build:
-  commands:
-    - env | grep -E '^(MONGO_URI|JWT_SECRET|JWT_EXPIRES_IN|NODE_ENV|FRONTEND_URL|PAYMENT_PROVIDER|PAYNOW_INTEGRATION_ID|PAYNOW_INTEGRATION_KEY|PAYNOW_RESULT_URL|PAYNOW_RETURN_URL|LISTING_FEE_AMOUNT|TENANT_PREMIUM_AMOUNT|SMTP_HOST|SMTP_PORT|SMTP_USER|SMTP_PASS|SMTP_SECURE|EMAIL_FROM|R2_ACCOUNT_ID|R2_ACCESS_KEY_ID|R2_SECRET_ACCESS_KEY|R2_BUCKET|R2_PUBLIC_BASE_URL|MONETIZATION_MODE)=' > .env
-    - rm -rf .amplify-hosting
+      commands:
+        - env | grep -E '^(MONGO_URI|JWT_SECRET|JWT_EXPIRES_IN|NODE_ENV|FRONTEND_URL|PAYMENT_PROVIDER|PAYNOW_INTEGRATION_ID|PAYNOW_INTEGRATION_KEY|PAYNOW_RESULT_URL|PAYNOW_RETURN_URL|LISTING_FEE_AMOUNT|TENANT_PREMIUM_AMOUNT|SMTP_HOST|SMTP_PORT|SMTP_USER|SMTP_PASS|SMTP_SECURE|EMAIL_FROM|R2_ACCOUNT_ID|R2_ACCESS_KEY_ID|R2_SECRET_ACCESS_KEY|R2_BUCKET|R2_PUBLIC_BASE_URL|MONETIZATION_MODE)=' > .env
+        - rm -rf .amplify-hosting
         - mkdir -p .amplify-hosting/compute/default
         - cp deploy-manifest.json .amplify-hosting/deploy-manifest.json
         - find . -maxdepth 1 -not -name '.' -not -name 'node_modules' -not -name '.amplify-hosting' -not -name '.git' | xargs -I{} cp -r {} .amplify-hosting/compute/default/
