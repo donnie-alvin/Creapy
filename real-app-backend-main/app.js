@@ -15,10 +15,15 @@ const { globalLimiter } = require("./middleware/rateLimiter");
 
 const listingRoutes = require("./routes/listingRoutes");
 
+const rawFrontendUrl = process.env.FRONTEND_URL || "";
+const corsOrigin = rawFrontendUrl
+  ? rawFrontendUrl.replace(/\/$/, "")
+  : "*";
 const corsOptions = {
-  origin: process.env.FRONTEND_URL || "*",
+  origin: corsOrigin,
   methods: "*",
   allowedHeaders: "*",
+  credentials: true,
 };
 
 const app = express();
