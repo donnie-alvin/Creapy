@@ -92,6 +92,13 @@ const SearchPage = () => {
   const [showMore, setShowMore] = useState(false);
   const locationSearch = window.location.search;
 
+  const normalizeType = (value: string | null) => {
+    if (value === "rent" || value === "all") {
+      return value;
+    }
+    return "all";
+  };
+
   const handleSearch = (event: any) => {
     let value = event.target.value.toLowerCase();
     setSideBarData({ ...sideBarData, searchTerm: value });
@@ -114,6 +121,7 @@ const SearchPage = () => {
     const boreholeFromUrl = urlParams.get("borehole");
     const securityFromUrl = urlParams.get("security");
     const internetFromUrl = urlParams.get("internet");
+    const normalizedType = normalizeType(typeFromUrl);
 
     if (
       searchTermFromUrl ||
@@ -133,7 +141,7 @@ const SearchPage = () => {
         borehole: boreholeFromUrl === "true",
         security: securityFromUrl === "true",
         internet: internetFromUrl === "true",
-        type: typeFromUrl || "all",
+        type: normalizedType,
         parking: parkingFromUrl === "true" ? true : false,
         furnished: furnishedFromUrl === "true" ? true : false,
         offer: offerFromUrl === "true" ? true : false,
@@ -144,6 +152,9 @@ const SearchPage = () => {
     const fetchListings = async () => {
       setLoading(true);
       setShowMore(false);
+      if (typeFromUrl && normalizedType !== typeFromUrl) {
+        urlParams.set("type", normalizedType);
+      }
       const searchQuery = urlParams.toString();
       const res = await fetch(`${apiBase}/listings/get?${searchQuery}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
@@ -165,7 +176,7 @@ const SearchPage = () => {
     e.preventDefault();
     const urlParams = new URLSearchParams();
     urlParams.set("searchTerm", sideBarData.searchTerm);
-    urlParams.set("type", sideBarData.type);
+    urlParams.set("type", normalizeType(sideBarData.type));
     urlParams.set("parking", sideBarData.parking);
     urlParams.set("furnished", sideBarData.furnished);
     urlParams.set("offer", sideBarData.offer);
@@ -346,17 +357,12 @@ const SearchPage = () => {
                     <FormControlLabel
                       value="all"
                       control={<Radio />}
-                      label="Rent & Sale"
+                      label="All Listings"
                     />
                     <FormControlLabel
                       value="rent"
                       control={<Radio />}
                       label="Rent"
-                    />
-                    <FormControlLabel
-                      value="sale"
-                      control={<Radio />}
-                      label="Sale"
                     />
                   </Box>
                 </RadioGroup>
@@ -580,7 +586,7 @@ const SearchPage = () => {
                                 <FaBed
                                   style={{ color: "#334155", marginTop: "3px" }}
                                 />
-                                {item?.bedrooms} Beds
+                                {item?.bedrooms} Rooms
                               </Box>
                               <Box sx={iconStyle}>
                                 <FaBath

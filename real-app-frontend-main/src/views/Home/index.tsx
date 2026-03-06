@@ -62,7 +62,6 @@ const Home = () => {
 
   const offerString = "offer=true&limit=4";
   const rentString = "type=rent&limit=4";
-  const saleString = "type=sale&limit=4";
 
   const { data: offerData, isLoading: offerLoading } =
     useSearchListingsQuery(offerString);
@@ -70,20 +69,19 @@ const Home = () => {
   const { data: rentData, isLoading: rentLoading } =
     useSearchListingsQuery(rentString);
 
-  const { data: saleData, isLoading: saleLoading } =
-    useSearchListingsQuery(saleString);
   const { data: highlightedData, isLoading: highlightedLoading } =
-    useGetHomeHighlightedQuery(9);
+    useGetHomeHighlightedQuery(5);
   const {
     data: groupedByLocationData,
     isLoading: groupedByLocationLoading,
     isError: groupedByLocationError,
-  } = useGetHomeGroupedByLocationQuery({ locationsLimit: 6, perLocation: 6 });
+  } = useGetHomeGroupedByLocationQuery({ locationsLimit: 6, perLocation: 3 });
 
   // Keep top home cards driven by highlighted endpoint while preserving
   // legacy offer data as a graceful fallback.
   const highlightedListings =
     highlightedData?.data?.length > 0 ? highlightedData?.data : offerData?.data || [];
+  const highlightedHeroListings = highlightedData?.data || [];
 
   const groupedSlides = useMemo(
     () => groupedByLocationData?.data || [],
@@ -102,7 +100,6 @@ const Home = () => {
     const anyLoading =
       offerLoading ||
       rentLoading ||
-      saleLoading ||
       highlightedLoading ||
       groupedByLocationLoading;
     if (!anyLoading) {
@@ -123,7 +120,7 @@ const Home = () => {
       window.clearTimeout(t1);
       window.clearTimeout(t2);
     };
-  }, [offerLoading, rentLoading, saleLoading, highlightedLoading, groupedByLocationLoading]);
+  }, [offerLoading, rentLoading, highlightedLoading, groupedByLocationLoading]);
 
   const handleHeroSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -232,9 +229,170 @@ const Home = () => {
                 <AppButton type="submit">Search Properties</AppButton>
               </AppCard>
             </Box>
+            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, marginTop: 2 }}>
+              <Box
+                component="button"
+                onClick={() => navigate("/search")}
+                sx={{
+                  background: "rgba(255,255,255,0.15)",
+                  color: "#fff",
+                  borderRadius: "999px",
+                  padding: "6px 14px",
+                  fontSize: "13px",
+                  cursor: "pointer",
+                  border: "none",
+                  fontWeight: 600,
+                }}
+              >
+                📍 Location
+              </Box>
+              <Box
+                component="button"
+                onClick={() => navigate("/search")}
+                sx={{
+                  background: "rgba(255,255,255,0.15)",
+                  color: "#fff",
+                  borderRadius: "999px",
+                  padding: "6px 14px",
+                  fontSize: "13px",
+                  cursor: "pointer",
+                  border: "none",
+                  fontWeight: 600,
+                }}
+              >
+                🏠 Rooms
+              </Box>
+              <Box
+                component="button"
+                onClick={() => navigate("/search")}
+                sx={{
+                  background: "rgba(255,255,255,0.15)",
+                  color: "#fff",
+                  borderRadius: "999px",
+                  padding: "6px 14px",
+                  fontSize: "13px",
+                  cursor: "pointer",
+                  border: "none",
+                  fontWeight: 600,
+                }}
+              >
+                💰 Price
+              </Box>
+              <Box
+                component="button"
+                onClick={() => navigate("/search")}
+                sx={{
+                  background: "rgba(255,255,255,0.15)",
+                  color: "#fff",
+                  borderRadius: "999px",
+                  padding: "6px 14px",
+                  fontSize: "13px",
+                  cursor: "pointer",
+                  border: "none",
+                  fontWeight: 600,
+                }}
+              >
+                ✨ Amenities
+              </Box>
+              <Box
+                component="button"
+                onClick={() => navigate("/search")}
+                sx={{
+                  background: "none",
+                  border: "none",
+                  color: "#93c5fd",
+                  cursor: "pointer",
+                  fontSize: "13px",
+                  fontWeight: 500,
+                }}
+              >
+                More Options →
+              </Box>
+            </Box>
           </Box>
         </Box>
       </AppContainer>
+
+      {!highlightedLoading && highlightedHeroListings.length > 0 ? (
+        <AppContainer sx={{ margin: "30px 0" }}>
+          <Swiper
+            modules={[Autoplay, Pagination]}
+            slidesPerView={1}
+            autoplay={{ delay: 4000, disableOnInteraction: false }}
+            pagination={{ clickable: true }}
+          >
+            {highlightedHeroListings.map((item: any) => (
+              <SwiperSlide key={item?._id}>
+                <Box
+                  onClick={() => navigate(`/listing/${item?._id}`)}
+                  sx={{
+                    position: "relative",
+                    height: { xs: 280, md: 420 },
+                    cursor: "pointer",
+                    overflow: "hidden",
+                    borderRadius: "14px",
+                    background: "#e2e8f0",
+                  }}
+                >
+                  {getListingImage(item) ? (
+                    <img
+                      src={getListingImage(item)}
+                      alt={item?.name || "listing"}
+                      height="100%"
+                      width="100%"
+                      style={{ objectFit: "cover" }}
+                    />
+                  ) : null}
+                  <Box
+                    sx={{
+                      position: "absolute",
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      background:
+                        "linear-gradient(to top, rgba(0,0,0,0.65) 0%, transparent 100%)",
+                      height: "50%",
+                    }}
+                  />
+                  <Box
+                    sx={{
+                      position: "absolute",
+                      bottom: 16,
+                      left: 16,
+                      color: "#fff",
+                      fontWeight: 700,
+                      fontSize: "18px",
+                      zIndex: 1,
+                    }}
+                  >
+                    {item?.name}
+                  </Box>
+                  {item?.status === "early_access" ? (
+                    <Box
+                      sx={{
+                        background: "#dbeafe",
+                        color: "#1e40af",
+                        fontSize: "11px",
+                        fontWeight: 700,
+                        borderRadius: "999px",
+                        padding: "3px 10px",
+                        display: "inline-block",
+                        position: "absolute",
+                        top: 8,
+                        left: 8,
+                        zIndex: 1,
+                        pointerEvents: "none",
+                      }}
+                    >
+                      ⚡ Early Access
+                    </Box>
+                  ) : null}
+                </Box>
+              </SwiperSlide>
+            ))}
+          </Swiper>
+        </AppContainer>
+      ) : null}
 
       <AppContainer>
         <Box
@@ -361,7 +519,7 @@ const Home = () => {
             },
           }}
         >
-          <Heading sx={{ color: "#475569" }}>Recent Offer</Heading>
+          <Heading sx={{ color: "#475569" }}>Featured Listings</Heading>
           <Box
             sx={{
               color: "#1e40af",
@@ -373,10 +531,10 @@ const Home = () => {
               },
             }}
             onClick={() => {
-              navigate(`/search?offer=true`);
+              navigate("/search");
             }}
           >
-            Show more offers
+            View all listings
           </Box>
           <Box sx={{ margin: "15px 0" }}>
             <Grid container spacing={2}>
@@ -531,7 +689,7 @@ const Home = () => {
                               <FaBed
                                 style={{ color: "#334155", marginTop: "3px" }}
                               />
-                              {item?.bedrooms} Beds
+                              {item?.bedrooms} Rooms
                             </Box>
                             <Box sx={iconStyle}>
                               <FaBath
@@ -714,190 +872,7 @@ const Home = () => {
                             <FaBed
                               style={{ color: "#334155", marginTop: "3px" }}
                             />
-                            {item?.bedrooms} Beds
-                          </Box>
-                          <Box sx={iconStyle}>
-                            <FaBath
-                              style={{ color: "#334155", marginTop: "3px" }}
-                            />
-                            {item?.bathrooms} Baths
-                          </Box>
-                        </Box>
-                      </Box>
-                    </Box>
-                  </AppCard>
-                </Grid>
-              ))}
-            </Grid>
-          </Box>
-          {/* Sale Data */}
-          <Heading sx={{ color: "#475569", marginTop: "20px" }}>
-            Places for Sale
-          </Heading>
-          <Box
-            sx={{
-              color: "#1e40af",
-              fontSize: "13px",
-              fontWeight: 400,
-              cursor: "pointer",
-              "&:hover": {
-                textDecoration: "underline",
-              },
-            }}
-            onClick={() => {
-              navigate(`/search?type=sale`);
-            }}
-          >
-            Show more offers for sale
-          </Box>
-          <Box sx={{ margin: "15px 0" }}>
-            <Grid container spacing={2}>
-              {saleData?.data?.map((item: any, index: number) => (
-                <Grid item xs={12} md={4} key={index}>
-                  <AppCard
-                    sx={{ marginBottom: "20px", cursor: "pointer" }}
-                    onClick={() => {
-                      navigate(`/listing/${item._id}`);
-                    }}
-                  >
-                    <Box
-                      sx={{
-                        height: { xs: 180, md: 200 },
-                        overflow: "hidden",
-                        position: "relative",
-                        "&:hover img": {
-                          transform: "scale(1.1)",
-                        },
-                      }}
-                    >
-                      <img
-                        src={item?.imageUrls[0]}
-                        alt="listing"
-                        height="100%"
-                        width="100%"
-                        style={{
-                          objectFit: "cover",
-                          borderRadius: "12px 12px 0 0",
-                          transition: "transform 0.3s ease",
-                        }}
-                      />
-                      {item?.status === "early_access" ? (
-                        <Box
-                          sx={{
-                            background: "#dbeafe",
-                            color: "#1e40af",
-                            fontSize: "11px",
-                            fontWeight: 700,
-                            borderRadius: "999px",
-                            padding: "3px 10px",
-                            display: "inline-block",
-                            position: "absolute",
-                            top: 8,
-                            left: 8,
-                            zIndex: 1,
-                            pointerEvents: "none",
-                          }}
-                        >
-                          ⚡ Early Access
-                        </Box>
-                      ) : null}
-                    </Box>
-                    <Box sx={{ padding: "18px 16px" }}>
-                      <SubHeading
-                        sx={{
-                          fontWeight: 600,
-                          fontSize: "18px",
-                          color: "#1f2937",
-                        }}
-                      >
-                        {item?.name?.length > 30
-                          ? item?.name?.substring(0, 30) + "..."
-                          : item?.name}
-                      </SubHeading>
-                      <Box
-                        sx={{
-                          marginTop: "5px",
-                          color: "text.secondary",
-                          fontSize: "13px",
-                          fontWeight: 500,
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "5px",
-                        }}
-                      >
-                        <FaLocationDot style={{ color: "#15803d" }} />
-                        {item?.address}
-                      </Box>
-                      <Box
-                        sx={{
-                          marginTop: "5px",
-                          color: "text.secondary",
-                          fontSize: "13px",
-                          minHeight: "44px",
-                        }}
-                      >
-                        {item?.description?.length > 150
-                          ? item?.description?.substring(0, 150) + "..."
-                          : item?.description}
-                      </Box>
-                      <Box
-                        sx={{
-                          color: "text.primary",
-                          fontWeight: 600,
-                          fontSize: "16px",
-                          marginTop: "10px",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          gap: "5px",
-                        }}
-                      >
-                        USD {thousandSeparatorNumber(item?.monthlyRent || item?.regularPrice)}{" "}
-                        {item?.type === "rent" ? "/ month" : ""}
-                        <Box>
-                          {item?.type === "rent" ? (
-                            <Box
-                              sx={{
-                                background: "#2B6A50",
-                                fontSize: "12px",
-                                color: "#fff",
-                                borderRadius: "999px",
-                                padding: "6px 12px",
-                                display: "inline-block",
-                              }}
-                            >
-                              Rent
-                            </Box>
-                          ) : (
-                            <Box
-                              sx={{
-                                background: "#6B8A7A",
-                                fontSize: "12px",
-                                color: "#fff",
-                                borderRadius: "999px",
-                                padding: "6px 12px",
-                                display: "inline-block",
-                              }}
-                            >
-                              Sale
-                            </Box>
-                          )}
-                        </Box>
-                      </Box>
-                      <Box
-                        sx={{
-                          marginTop: "7px",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                        }}
-                      >
-                        <Box sx={{ display: "flex", gap: 1 }}>
-                          <Box sx={iconStyle}>
-                            <FaBed
-                              style={{ color: "#334155", marginTop: "3px" }}
-                            />
-                            {item?.bedrooms} Beds
+                            {item?.bedrooms} Rooms
                           </Box>
                           <Box sx={iconStyle}>
                             <FaBath

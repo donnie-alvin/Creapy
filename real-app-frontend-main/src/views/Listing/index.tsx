@@ -520,13 +520,13 @@ const CreateListing = () => {
                         >
                           <Box sx={{ width: "100%" }}>
                             <SubHeading sx={{ marginBottom: "5px" }}>
-                              Beds
+                              Rooms
                             </SubHeading>
                             <PrimaryInput
                               type="number"
                               label=""
                               name="bedrooms"
-                              placeholder="Beds"
+                              placeholder="Rooms"
                               value={values.bedrooms}
                               helperText={
                                 errors.bedrooms && touched.bedrooms
@@ -667,11 +667,6 @@ const CreateListing = () => {
                                 value="rent"
                                 control={<Radio />}
                                 label="Rent"
-                              />
-                              <FormControlLabel
-                                value="sale"
-                                control={<Radio />}
-                                label="Sale"
                               />
                             </Box>
                           </RadioGroup>

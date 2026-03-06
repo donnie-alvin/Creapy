@@ -28,7 +28,7 @@ export const listingSchema = Yup.object().shape({
     .nullable()
     .positive("Bathrooms must be greater than 0"),
   bedrooms: Yup.number()
-    .required("Bedrooms is required")
+    .required("Rooms is required")
     .nullable()
     .positive("Bedrooms must be greater than 0"),
   furnished: Yup.boolean().required("Furnished is required").nullable(),

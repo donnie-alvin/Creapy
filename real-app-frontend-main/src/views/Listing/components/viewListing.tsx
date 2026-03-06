@@ -202,7 +202,7 @@ const ViewListing = () => {
                   >
                     <Box sx={iconStyle}>
                       <FaBed style={{ color: "#2B6A50" }} />
-                      {data?.data?.bedrooms} Beds
+                      {data?.data?.bedrooms} Rooms
                     </Box>
                     <Box sx={iconStyle}>
                       <FaBath style={{ color: "#2B6A50" }} />
