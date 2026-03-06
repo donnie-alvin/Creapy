@@ -53,11 +53,9 @@ exports.handlePaynowWebhook = async (req, res) => {
     try {
       // Step 6a — listing_fee side-effect
       if (claimedPayment.type === "listing_fee") {
-        const now = new Date();
         await Listing.findByIdAndUpdate(claimedPayment.listing, {
-          status: "early_access",
-          earlyAccessUntil: new Date(now.getTime() + 24 * 60 * 60 * 1000),
-          publishedAt: now,
+          status: "active",
+          paymentDeadline: null,
         });
       }
 

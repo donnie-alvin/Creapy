@@ -5,7 +5,10 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Box, CircularProgress, Typography } from "@mui/material";
 // Redux Imports
 import { useGetSingleListingQuery } from "../../redux/api/listingApiSlice";
-import { useInitiateListingFeeMutation } from "../../redux/api/paymentApiSlice";
+import {
+  useGetMyPaymentsQuery,
+  useInitiateListingFeeMutation,
+} from "../../redux/api/paymentApiSlice";
 import { selectedUserId } from "../../redux/auth/authSlice";
 // Hook Imports
 import useTypedSelector from "../../hooks/useTypedSelector";
@@ -43,6 +46,10 @@ const ListingPayment = () => {
     skip: !id,
     pollingInterval: uiState === "polling" ? 5000 : 0,
   });
+  const { data: paymentsData } = useGetMyPaymentsQuery(undefined, {
+    pollingInterval: uiState === "polling" ? 5000 : 0,
+    refetchOnMountOrArgChange: true,
+  });
 
   const [initiateListingFee, { isLoading: isInitiating }] =
     useInitiateListingFeeMutation();
@@ -50,15 +57,23 @@ const ListingPayment = () => {
   const listing = data?.data;
   const feeAmount = process.env.REACT_APP_LISTING_FEE_AMOUNT || "5";
   const isOwner = listing?.user === userId || listing?.user?._id === userId;
+  const listingPayments = (paymentsData?.data || []).filter((payment: any) => {
+    const paymentListingId =
+      typeof payment?.listing === "string"
+        ? payment.listing
+        : payment?.listing?._id;
+    return payment?.type === "listing_fee" && paymentListingId === id;
+  });
+  const hasVerifiedListingFeePayment = listingPayments.some(
+    (payment: any) => payment?.status === "success" && payment?.webhookVerified
+  );
+  const canInitiatePayment = listing?.status === "pending_payment";
 
   useEffect(() => {
-    if (
-      uiState !== "success" &&
-      (listing?.status === "early_access" || listing?.status === "active")
-    ) {
+    if (uiState !== "success" && hasVerifiedListingFeePayment) {
       setUiState("success");
     }
-  }, [data, uiState]);
+  }, [hasVerifiedListingFeePayment, uiState]);
 
   useEffect(() => {
     if (uiState === "success") {
@@ -146,6 +161,29 @@ const ListingPayment = () => {
           <AppCard sx={{ p: { xs: 2, md: 3 }, maxWidth: 500, mx: "auto" }}>
             <Typography sx={{ marginBottom: "16px" }}>
               You do not have permission to pay for this listing.
+            </Typography>
+            <AppButton onClick={() => navigate("/dashboard/landlord")}>
+              Back to Dashboard
+            </AppButton>
+          </AppCard>
+        </AppContainer>
+        <ToastAlert
+          appearence={toast.appearence}
+          type={toast.type}
+          message={toast.message}
+          handleClose={handleCloseToast}
+        />
+      </Box>
+    );
+  }
+
+  if (uiState === "idle" && !canInitiatePayment && !hasVerifiedListingFeePayment) {
+    return (
+      <Box sx={{ marginTop: "50px" }}>
+        <AppContainer>
+          <AppCard sx={{ p: { xs: 2, md: 3 }, maxWidth: 500, mx: "auto" }}>
+            <Typography sx={{ marginBottom: "16px" }}>
+              This listing is not awaiting payment.
             </Typography>
             <AppButton onClick={() => navigate("/dashboard/landlord")}>
               Back to Dashboard

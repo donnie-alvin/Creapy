@@ -166,7 +166,7 @@ const Home = () => {
             position: "relative",
             borderRadius: "24px",
             overflow: "hidden",
-            minHeight: { xs: "420px", md: "520px" },
+            minHeight: { xs: "480px", md: "520px" },
             backgroundImage:
               "url(https://images.unsplash.com/photo-1505691723518-36a5ac3be353?q=80&w=2070&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D)",
             backgroundSize: "cover",
@@ -478,7 +478,7 @@ const Home = () => {
                                   sx={{
                                     fontWeight: 600,
                                     fontSize: "14px",
-                                    color: "#abffe8",
+                                    color: "#1f2937",
                                     marginTop: 1,
                                   }}
                                 >
@@ -646,34 +646,17 @@ const Home = () => {
                               : item?.monthlyRent || item?.regularPrice
                           )}{" "}
                           {item?.type === "rent" ? "/ month" : ""}
-                          <Box>
-                            {item?.type === "rent" ? (
-                              <Box
-                                sx={{
-                                  background: "#2B6A50",
-                                  fontSize: "12px",
-                                  color: "#fff",
-                                  borderRadius: "999px",
-                                  padding: "6px 12px",
-                                  display: "inline-block",
-                                }}
-                              >
-                                Rent
-                              </Box>
-                            ) : (
-                              <Box
-                                sx={{
-                                  background: "#6B8A7A",
-                                  fontSize: "12px",
-                                  color: "#fff",
-                                  borderRadius: "999px",
-                                  padding: "6px 12px",
-                                  display: "inline-block",
-                                }}
-                              >
-                                Sale
-                              </Box>
-                            )}
+                          <Box
+                            sx={{
+                              background: "#2B6A50",
+                              fontSize: "12px",
+                              color: "#fff",
+                              borderRadius: "999px",
+                              padding: "6px 12px",
+                              display: "inline-block",
+                            }}
+                          >
+                            Rent
                           </Box>
                         </Box>
                         <Box
@@ -706,24 +689,28 @@ const Home = () => {
             </Grid>
           </Box>
           {/* Rent Data */}
-          <Heading sx={{ color: "#475569", marginTop: "20px" }}>
-            Places for Rent
-          </Heading>
-          <Box
-            sx={{
-              color: "#1e40af",
-              fontSize: "13px",
-              fontWeight: 400,
-              cursor: "pointer",
-              "&:hover": {
-                textDecoration: "underline",
-              },
-            }}
-            onClick={() => {
-              navigate(`/search?type=rent`);
-            }}
-          >
-            Show more offers for rent
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+            <Heading
+              sx={{ color: "#475569", marginTop: "30px", display: "block" }}
+            >
+              Places for Rent
+            </Heading>
+            <Box
+              sx={{
+                color: "#1e40af",
+                fontSize: "13px",
+                fontWeight: 400,
+                cursor: "pointer",
+                "&:hover": {
+                  textDecoration: "underline",
+                },
+              }}
+              onClick={() => {
+                navigate(`/search?type=rent`);
+              }}
+            >
+              Show more offers for rent
+            </Box>
           </Box>
           <Box sx={{ margin: "15px 0" }}>
             <Grid container spacing={2}>
@@ -829,34 +816,17 @@ const Home = () => {
                       >
                         USD {thousandSeparatorNumber(item?.monthlyRent || item?.regularPrice)}{" "}
                         {item?.type === "rent" ? "/ month" : ""}
-                        <Box>
-                          {item?.type === "rent" ? (
-                            <Box
-                              sx={{
-                                background: "#2B6A50",
-                                fontSize: "12px",
-                                color: "#fff",
-                                borderRadius: "999px",
-                                padding: "6px 12px",
-                                display: "inline-block",
-                              }}
-                            >
-                              Rent
-                            </Box>
-                          ) : (
-                            <Box
-                              sx={{
-                                background: "#6B8A7A",
-                                fontSize: "12px",
-                                color: "#fff",
-                                borderRadius: "999px",
-                                padding: "6px 12px",
-                                display: "inline-block",
-                              }}
-                            >
-                              Sale
-                            </Box>
-                          )}
+                        <Box
+                          sx={{
+                            background: "#2B6A50",
+                            fontSize: "12px",
+                            color: "#fff",
+                            borderRadius: "999px",
+                            padding: "6px 12px",
+                            display: "inline-block",
+                          }}
+                        >
+                          Rent
                         </Box>
                       </Box>
                       <Box

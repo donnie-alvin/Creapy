@@ -12,6 +12,11 @@ import {
   styled,
   MenuProps,
   Tooltip,
+  Drawer,
+  List,
+  ListItemButton,
+  ListItemText,
+  Divider,
 } from "@mui/material";
 // Component Imports
 import { Heading } from "../Heading";
@@ -30,6 +35,8 @@ import {
 // Icons Imports
 import { ImProfile } from "react-icons/im";
 import { IoLogOutOutline } from "react-icons/io5";
+import MenuIcon from "@mui/icons-material/Menu";
+import CloseIcon from "@mui/icons-material/Close";
 import {
   selectedSearchText,
   setSearchText,
@@ -85,6 +92,7 @@ const Header = () => {
 
   const [anchorEl, setAnchorEl] = useState<Element | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   const handleSearch = (event: any) => {
     let value = event.target.value.toLowerCase();
@@ -135,11 +143,32 @@ const Header = () => {
             }}
           >
             <Box
-              onClick={() => navigate("/")}
-              sx={{ display: "flex", cursor: "pointer", alignItems: "center" }}
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                width: { xs: "100%", md: "auto" },
+              }}
             >
-              <Heading sx={{ color: "#2B6A50" }}>Real</Heading>
-              <Heading sx={{ color: "#1F2937" }}>Estate</Heading>
+              <Box
+                onClick={() => navigate("/")}
+                sx={{ display: "flex", cursor: "pointer", alignItems: "center" }}
+              >
+                <Heading sx={{ color: "#2B6A50" }}>Real</Heading>
+                <Heading sx={{ color: "#1F2937" }}>Estate</Heading>
+              </Box>
+              <IconButton
+                sx={{
+                  display: "flex",
+                  "@media (min-width:768px)": {
+                    display: "none",
+                  },
+                }}
+                onClick={() => setMobileOpen((prev) => !prev)}
+                aria-label="toggle mobile navigation"
+              >
+                {mobileOpen ? <CloseIcon fontSize="small" /> : <MenuIcon fontSize="small" />}
+              </IconButton>
             </Box>
 
             <Box sx={{ flex: 1, minWidth: { xs: "100%", md: 320 } }}>
@@ -156,7 +185,10 @@ const Header = () => {
 
             <Box
               sx={{
-                display: "flex",
+                display: "none",
+                "@media (min-width:768px)": {
+                  display: "flex",
+                },
                 alignItems: "center",
                 gap: { xs: 1.5, md: 2 },
                 flexWrap: "wrap",
@@ -299,15 +331,88 @@ const Header = () => {
                   <Box sx={menuStyle} onClick={() => navigate("/login")}>
                     Log in
                   </Box>
-                  <AppButton onClick={() => navigate("/signup")}>
-                    Sign up
-                  </AppButton>
+                  <AppButton onClick={() => navigate("/signup")}>Sign up</AppButton>
                 </>
               )}
             </Box>
           </Box>
         </AppContainer>
       </Box>
+      <Drawer
+        anchor="right"
+        open={mobileOpen}
+        onClose={() => setMobileOpen(false)}
+        PaperProps={{ sx: { width: 260, pt: 2, px: 2 } }}
+      >
+        <List>
+          <ListItemButton
+            onClick={() => {
+              navigate("/");
+              setMobileOpen(false);
+            }}
+          >
+            <ListItemText primary="Home" />
+          </ListItemButton>
+          <ListItemButton
+            onClick={() => {
+              navigate("/search");
+              setMobileOpen(false);
+            }}
+          >
+            <ListItemText primary="Search / Properties" />
+          </ListItemButton>
+
+          {avatar ? (
+            <>
+              <ListItemButton
+                onClick={() => {
+                  if (userRole === "landlord") {
+                    navigate("/dashboard/landlord");
+                  } else if (userRole === "tenant") {
+                    navigate("/dashboard/tenant");
+                  } else {
+                    navigate("/");
+                  }
+                  setMobileOpen(false);
+                }}
+              >
+                <ListItemText primary="Dashboard" />
+              </ListItemButton>
+              <ListItemButton
+                onClick={() => {
+                  navigate("/profile");
+                  setMobileOpen(false);
+                }}
+              >
+                <ListItemText primary="Profile" />
+              </ListItemButton>
+              <Divider sx={{ my: 1 }} />
+              <ListItemButton
+                onClick={() => {
+                  dispatch(setUser(null));
+                  localStorage.removeItem("user");
+                  setMobileOpen(false);
+                  navigate("/");
+                }}
+              >
+                <ListItemText primary="Logout" />
+              </ListItemButton>
+            </>
+          ) : (
+            <>
+              <Divider sx={{ my: 1 }} />
+              <ListItemButton
+                onClick={() => {
+                  navigate("/login");
+                  setMobileOpen(false);
+                }}
+              >
+                <ListItemText primary="Login" />
+              </ListItemButton>
+            </>
+          )}
+        </List>
+      </Drawer>
     </header>
   );
 };

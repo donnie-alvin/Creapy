@@ -7,10 +7,19 @@ const User = require("../models/userModel");
 const { sendEmail } = require("../utils/email");
 const mongoose = require("mongoose");
 const { isPremiumTenant } = require("../utils/monetization");
+const SINGLE_ACTIVE_LISTING_MESSAGE =
+  "You already have an active listing. You can only have one listing at a time.";
 
-const promoteExpiredEarlyAccess = async () => {
-  // Update any early_access listings where earlyAccessUntil has passed to active
+const isDuplicateKeyError = (error) =>
+  error &&
+  error.code === 11000 &&
+  ((error.keyPattern && error.keyPattern.user) ||
+    (error.keyValue && error.keyValue.user));
+
+const applyListingLifecycle = async () => {
   const now = new Date();
+
+  // 1) Promote expired early_access listings to active
   await Listing.updateMany(
     {
       status: "early_access",
@@ -18,6 +27,29 @@ const promoteExpiredEarlyAccess = async () => {
     },
     {
       $set: { status: "active" },
+    }
+  );
+
+  // 2) Demote overdue active/pending_payment listings to inactive
+  await Listing.updateMany(
+    {
+      paymentDeadline: { $lt: now },
+      status: { $in: ["active", "pending_payment"] },
+    },
+    {
+      $set: { status: "inactive" },
+    }
+  );
+
+  // 3) Demote active listings to pending_payment after 24h window
+  await Listing.updateMany(
+    {
+      publishedAt: { $lt: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+      paymentDeadline: { $gt: now },
+      status: "active",
+    },
+    {
+      $set: { status: "pending_payment" },
     }
   );
 };
@@ -73,9 +105,32 @@ const matchesSavedSearch = (search, listing) => {
 
 exports.createListing = catchAsync(async (req, res, next) => {
   // 1) Create a listing
+  const existingCount = await Listing.countDocuments({
+    user: req.user.id,
+    status: { $ne: "inactive" },
+  });
+  if (existingCount >= 1) {
+    return res.status(400).json({
+      message: SINGLE_ACTIVE_LISTING_MESSAGE,
+    });
+  }
+
   const payload = normalizeListingPayload(req.body);
   payload.user = req.user.id;
-  const newListing = await Listing.create(payload);
+  payload.status = "active";
+  payload.publishedAt = new Date();
+  payload.paymentDeadline = new Date(Date.now() + 48 * 60 * 60 * 1000);
+  let newListing;
+  try {
+    newListing = await Listing.create(payload);
+  } catch (error) {
+    if (isDuplicateKeyError(error)) {
+      return res.status(400).json({
+        message: SINGLE_ACTIVE_LISTING_MESSAGE,
+      });
+    }
+    throw error;
+  }
 
   // 1b) Trigger saved-search alerts (email) for tenants
   try {
@@ -197,6 +252,24 @@ exports.updateListing = catchAsync(async (req, res, next) => {
     return next(new AppError("You do not own this listing", 403));
   }
 
+  const lifecycleControlledFields = [
+    "status",
+    "paymentDeadline",
+    "publishedAt",
+    "earlyAccessUntil",
+  ];
+  const attemptedLifecycleFields = lifecycleControlledFields.filter(
+    (field) => Object.prototype.hasOwnProperty.call(req.body, field)
+  );
+  if (attemptedLifecycleFields.length > 0) {
+    return next(
+      new AppError(
+        "Listing lifecycle fields cannot be updated from this endpoint.",
+        400
+      )
+    );
+  }
+
   // 4) Update the listing
   const updatedListing = await Listing.findByIdAndUpdate(
     req.params.id,
@@ -214,9 +287,63 @@ exports.updateListing = catchAsync(async (req, res, next) => {
   });
 });
 
+exports.reviveListing = catchAsync(async (req, res, next) => {
+  const listing = await Listing.findById(req.params.id);
+
+  if (!listing) {
+    return next(new AppError("No listing found with that ID", 404));
+  }
+
+  if (listing.user.toString() !== req.user.id) {
+    return next(new AppError("You do not own this listing", 403));
+  }
+
+  if (listing.status !== "inactive") {
+    return res.status(400).json({
+      message: "Only inactive listings can be revived.",
+    });
+  }
+
+  const existingCount = await Listing.countDocuments({
+    user: req.user.id,
+    status: { $ne: "inactive" },
+    _id: { $ne: listing._id },
+  });
+  if (existingCount >= 1) {
+    return res.status(400).json({
+      message: SINGLE_ACTIVE_LISTING_MESSAGE,
+    });
+  }
+
+  let revivedListing;
+  try {
+    revivedListing = await Listing.findByIdAndUpdate(
+      req.params.id,
+      {
+        status: "active",
+        publishedAt: new Date(),
+        paymentDeadline: new Date(Date.now() + 48 * 60 * 60 * 1000),
+      },
+      { new: true }
+    );
+  } catch (error) {
+    if (isDuplicateKeyError(error)) {
+      return res.status(400).json({
+        message: SINGLE_ACTIVE_LISTING_MESSAGE,
+      });
+    }
+    throw error;
+  }
+
+  return res.status(200).json({
+    status: "success",
+    data: revivedListing,
+  });
+});
+
 exports.getListings = catchAsync(async (req, res, next) => {
-  // 0) Promote expired early_access listings to active
-  await promoteExpiredEarlyAccess();
+  // 0) Apply listing lifecycle updates
+  await applyListingLifecycle();
 
   // 1) Pagination
   const page = req.query.page * 1 || 1;
@@ -322,8 +449,8 @@ exports.getListings = catchAsync(async (req, res, next) => {
 });
 
 exports.getHomeHighlighted = catchAsync(async (req, res, next) => {
-  // 0) Promote expired early_access listings to active
-  await promoteExpiredEarlyAccess();
+  // 0) Apply listing lifecycle updates
+  await applyListingLifecycle();
 
   const limit = Math.max(1, Number(req.query.limit) || 9);
   const isPremium = req.user ? isPremiumTenant(req.user) : false;
@@ -341,8 +468,8 @@ exports.getHomeHighlighted = catchAsync(async (req, res, next) => {
 });
 
 exports.getHomeGroupedByLocation = catchAsync(async (req, res, next) => {
-  // 0) Promote expired early_access listings to active
-  await promoteExpiredEarlyAccess();
+  // 0) Apply listing lifecycle updates
+  await applyListingLifecycle();
 
   const locationsLimit = Math.max(1, Number(req.query.locationsLimit) || 6);
   const perLocation = Math.max(1, Number(req.query.perLocation) || 6);

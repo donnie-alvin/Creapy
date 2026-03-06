@@ -288,7 +288,7 @@ const CreateListing = () => {
           });
           return;
         }
-        navigate(`/listings/${newListingId}/pay`);
+        navigate("/dashboard/landlord");
       }
       if (listing?.error) {
         setToast({

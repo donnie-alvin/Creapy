@@ -42,10 +42,11 @@ const listingSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: ["pending_payment", "early_access", "active", "inactive"],
-      default: "pending_payment",
+      default: "active",
     },
     earlyAccessUntil: { type: Date, default: null },
     publishedAt:      { type: Date, default: null },
+    paymentDeadline:  { type: Date, default: null },
     
     bathrooms: {
       type: Number,
@@ -79,6 +80,16 @@ const listingSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
+  }
+);
+
+listingSchema.index(
+  { user: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      status: { $in: ["active", "pending_payment", "early_access"] },
+    },
   }
 );
 
