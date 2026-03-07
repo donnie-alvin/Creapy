@@ -287,60 +287,6 @@ exports.updateListing = catchAsync(async (req, res, next) => {
   });
 });
 
-exports.reviveListing = catchAsync(async (req, res, next) => {
-  const listing = await Listing.findById(req.params.id);
-
-  if (!listing) {
-    return next(new AppError("No listing found with that ID", 404));
-  }
-
-  if (listing.user.toString() !== req.user.id) {
-    return next(new AppError("You do not own this listing", 403));
-  }
-
-  if (listing.status !== "inactive") {
-    return res.status(400).json({
-      message: "Only inactive listings can be revived.",
-    });
-  }
-
-  const existingCount = await Listing.countDocuments({
-    user: req.user.id,
-    status: { $ne: "inactive" },
-    _id: { $ne: listing._id },
-  });
-  if (existingCount >= 1) {
-    return res.status(400).json({
-      message: SINGLE_ACTIVE_LISTING_MESSAGE,
-    });
-  }
-
-  let revivedListing;
-  try {
-    revivedListing = await Listing.findByIdAndUpdate(
-      req.params.id,
-      {
-        status: "active",
-        publishedAt: new Date(),
-        paymentDeadline: new Date(Date.now() + 48 * 60 * 60 * 1000),
-      },
-      { new: true }
-    );
-  } catch (error) {
-    if (isDuplicateKeyError(error)) {
-      return res.status(400).json({
-        message: SINGLE_ACTIVE_LISTING_MESSAGE,
-      });
-    }
-    throw error;
-  }
-
-  return res.status(200).json({
-    status: "success",
-    data: revivedListing,
-  });
-});
-
 exports.getListings = catchAsync(async (req, res, next) => {
   // 0) Apply listing lifecycle updates
   await applyListingLifecycle();

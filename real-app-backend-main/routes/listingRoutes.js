@@ -44,12 +44,6 @@ router.delete(
 );
 
 router.put(
-  "/:id/revive",
-  authController.requireRole("landlord"),
-  listingController.reviveListing
-);
-
-router.put(
   "/:id",
   authController.requireRole("landlord"),
   listingController.updateListing

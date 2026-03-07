@@ -11,7 +11,7 @@ import PrimaryInput from "../../components/PrimaryInput/PrimaryInput";
 import ToastAlert from "../../components/ToastAlert/ToastAlert";
 import DotLoader from "../../components/Spinner/dotLoader";
 // Utils Imports
-import { onKeyDown } from "../../utils";
+import { buildUploadSignUrl, onKeyDown } from "../../utils";
 // Hooks Imports
 import useTypedSelector from "../../hooks/useTypedSelector";
 // React Icons
@@ -92,12 +92,9 @@ const Profile = () => {
       const token = JSON.parse(localStorage.getItem("user") || "null")?.token;
 
       // signed url
-      const res = await fetch(
-        `${process.env.REACT_APP_BACKEND_URL}/api/v1/uploads/r2-sign?contentType=${encodeURIComponent(
-          file.type
-        )}&folder=avatars`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const res = await fetch(buildUploadSignUrl(file.type, "avatars"), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
       const json = await res.json();
       if (!res.ok) throw new Error(json?.message || "Failed to get signed URL");

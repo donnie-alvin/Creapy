@@ -266,6 +266,17 @@ const LandlordDashboard = () => {
                         >
                           Pay Now
                         </AppButton>
+                      ) : item?.status === "inactive" ? (
+                        <AppButton
+                          variant="contained"
+                          sx={{
+                            background: "#6b7280",
+                            "&:hover": { background: "#4b5563" },
+                          }}
+                          onClick={() => navigate(`/listings/${item?._id}/pay`)}
+                        >
+                          Revive (Pay to Restore)
+                        </AppButton>
                       ) : (
                         <Box sx={{ display: "flex", gap: 1 }}>
                           <Tooltip title="Edit">

@@ -1,5 +1,5 @@
 // MUI Imports
-import { Box, Grid } from "@mui/material";
+import { Box, Grid, Menu, MenuItem } from "@mui/material";
 // React Imports
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -27,6 +27,7 @@ import AppContainer from "../../components/ui/AppContainer";
 import AppCard from "../../components/ui/AppCard";
 import AppButton from "../../components/ui/AppButton";
 import AppInput from "../../components/ui/AppInput";
+import { ZIMBABWE_PROVINCES } from "../../config/zimbabweProvinces";
 
 const Banner = {
   width: "100%",
@@ -59,6 +60,10 @@ const images = [
 const Home = () => {
   const navigate = useNavigate();
   const [heroSearch, setHeroSearch] = useState("");
+  const [locationAnchor, setLocationAnchor] = useState<null | HTMLElement>(null);
+  const [roomsAnchor, setRoomsAnchor] = useState<null | HTMLElement>(null);
+  const [priceAnchor, setPriceAnchor] = useState<null | HTMLElement>(null);
+  const [amenitiesAnchor, setAmenitiesAnchor] = useState<null | HTMLElement>(null);
 
   const offerString = "offer=true&limit=4";
   const rentString = "type=rent&limit=4";
@@ -232,7 +237,9 @@ const Home = () => {
             <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, marginTop: 2 }}>
               <Box
                 component="button"
-                onClick={() => navigate("/search")}
+                onClick={(e: React.MouseEvent<HTMLElement>) =>
+                  setLocationAnchor(e.currentTarget)
+                }
                 sx={{
                   background: "rgba(255,255,255,0.15)",
                   color: "#fff",
@@ -244,11 +251,32 @@ const Home = () => {
                   fontWeight: 600,
                 }}
               >
-                📍 Location
+                📍 Location ▾
               </Box>
+              <Menu
+                anchorEl={locationAnchor}
+                open={Boolean(locationAnchor)}
+                onClose={() => setLocationAnchor(null)}
+              >
+                {ZIMBABWE_PROVINCES.map((province) => (
+                  <MenuItem
+                    key={province.value}
+                    onClick={() => {
+                      setLocationAnchor(null);
+                      navigate(
+                        `/search?location=${encodeURIComponent(province.value)}`
+                      );
+                    }}
+                  >
+                    {province.label}
+                  </MenuItem>
+                ))}
+              </Menu>
               <Box
                 component="button"
-                onClick={() => navigate("/search")}
+                onClick={(e: React.MouseEvent<HTMLElement>) =>
+                  setRoomsAnchor(e.currentTarget)
+                }
                 sx={{
                   background: "rgba(255,255,255,0.15)",
                   color: "#fff",
@@ -260,11 +288,30 @@ const Home = () => {
                   fontWeight: 600,
                 }}
               >
-                🏠 Rooms
+                🏠 Rooms ▾
               </Box>
+              <Menu
+                anchorEl={roomsAnchor}
+                open={Boolean(roomsAnchor)}
+                onClose={() => setRoomsAnchor(null)}
+              >
+                {[1, 2, 3, 4, 5, 6].map((rooms) => (
+                  <MenuItem
+                    key={rooms}
+                    onClick={() => {
+                      setRoomsAnchor(null);
+                      navigate(`/search?minBedrooms=${rooms}`);
+                    }}
+                  >
+                    {rooms}
+                  </MenuItem>
+                ))}
+              </Menu>
               <Box
                 component="button"
-                onClick={() => navigate("/search")}
+                onClick={(e: React.MouseEvent<HTMLElement>) =>
+                  setPriceAnchor(e.currentTarget)
+                }
                 sx={{
                   background: "rgba(255,255,255,0.15)",
                   color: "#fff",
@@ -276,11 +323,51 @@ const Home = () => {
                   fontWeight: 600,
                 }}
               >
-                💰 Price
+                💰 Price ▾
               </Box>
+              <Menu
+                anchorEl={priceAnchor}
+                open={Boolean(priceAnchor)}
+                onClose={() => setPriceAnchor(null)}
+              >
+                {[
+                  {
+                    label: "Under $500",
+                    query: "maxRent=500",
+                  },
+                  {
+                    label: "$500 - $1,000",
+                    query: "minRent=500&maxRent=1000",
+                  },
+                  {
+                    label: "$1,000 - $2,000",
+                    query: "minRent=1000&maxRent=2000",
+                  },
+                  {
+                    label: "$2,000 - $5,000",
+                    query: "minRent=2000&maxRent=5000",
+                  },
+                  {
+                    label: "$5,000+",
+                    query: "minRent=5000",
+                  },
+                ].map((band) => (
+                  <MenuItem
+                    key={band.label}
+                    onClick={() => {
+                      setPriceAnchor(null);
+                      navigate(`/search?${band.query}`);
+                    }}
+                  >
+                    {band.label}
+                  </MenuItem>
+                ))}
+              </Menu>
               <Box
                 component="button"
-                onClick={() => navigate("/search")}
+                onClick={(e: React.MouseEvent<HTMLElement>) =>
+                  setAmenitiesAnchor(e.currentTarget)
+                }
                 sx={{
                   background: "rgba(255,255,255,0.15)",
                   color: "#fff",
@@ -292,8 +379,31 @@ const Home = () => {
                   fontWeight: 600,
                 }}
               >
-                ✨ Amenities
+                ✨ Amenities ▾
               </Box>
+              <Menu
+                anchorEl={amenitiesAnchor}
+                open={Boolean(amenitiesAnchor)}
+                onClose={() => setAmenitiesAnchor(null)}
+              >
+                {[
+                  { label: "Solar", query: "solar=true" },
+                  { label: "Borehole", query: "borehole=true" },
+                  { label: "Security", query: "security=true" },
+                  { label: "Parking", query: "parking=true" },
+                  { label: "Internet", query: "internet=true" },
+                ].map((amenity) => (
+                  <MenuItem
+                    key={amenity.label}
+                    onClick={() => {
+                      setAmenitiesAnchor(null);
+                      navigate(`/search?${amenity.query}`);
+                    }}
+                  >
+                    {amenity.label}
+                  </MenuItem>
+                ))}
+              </Menu>
               <Box
                 component="button"
                 onClick={() => navigate("/search")}

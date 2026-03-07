@@ -20,6 +20,7 @@ import AppInput from "../../components/ui/AppInput";
 import AppSelect from "../../components/ui/AppSelect";
 import AppButton from "../../components/ui/AppButton";
 import DotLoader from "../../components/Spinner/dotLoader";
+import { ZIMBABWE_PROVINCES } from "../../config/zimbabweProvinces";
 // Hooks Imports
 import useTypedSelector from "../../hooks/useTypedSelector";
 // Redux Imports
@@ -32,7 +33,7 @@ import { FaLocationDot } from "react-icons/fa6";
 import { FaBed } from "react-icons/fa";
 import { FaBath } from "react-icons/fa";
 // Utils Imports
-import { thousandSeparatorNumber } from "../../utils";
+import { getApiBaseUrl, thousandSeparatorNumber } from "../../utils";
 
 const iconStyle = {
   display: "flex",
@@ -67,7 +68,7 @@ const SearchPage = () => {
   const dispatch = useDispatch();
   const searchText = useTypedSelector(selectedSearchText);
   const token = JSON.parse(localStorage.getItem("user") || "null")?.token;
-  const apiBase = (process.env.REACT_APP_API_URL || "").replace(/\/$/, "");
+  const apiBase = getApiBaseUrl();
 
   const [sideBarData, setSideBarData] = useState<any>({
     searchTerm: "",
@@ -240,13 +241,21 @@ const SearchPage = () => {
               />
 
               <Box sx={{ marginTop: "10px" }}>
-                <SubHeading sx={{ marginBottom: "5px" }}>Location / Area</SubHeading>
-                <AppInput
+                <SubHeading sx={{ marginBottom: "5px" }}>Province</SubHeading>
+                <AppSelect
+                  options={[
+                    { label: "All Provinces", value: "" },
+                    ...ZIMBABWE_PROVINCES,
+                  ]}
                   value={sideBarData.location}
                   onChange={(e) =>
                     setSideBarData({ ...sideBarData, location: e.target.value })
                   }
-                  placeholder="e.g., Avondale"
+                  size="small"
+                  displayEmpty
+                  renderValue={(selected) =>
+                    selected ? selected : "All Provinces"
+                  }
                 />
               </Box>
 
@@ -542,35 +551,20 @@ const SearchPage = () => {
                             }}
                           >
                             USD {thousandSeparatorNumber(item?.monthlyRent || item?.regularPrice)}{" "}
-                            {item?.type === "rent" ? "/ month" : ""}
+                            / month
                             <Box>
-                              {item?.type === "rent" ? (
-                                <Box
-                                  sx={{
-                                    background: "#2B6A50",
-                                    fontSize: "12px",
-                                    color: "#fff",
-                                    borderRadius: "999px",
-                                    padding: "6px 12px",
-                                    display: "inline-block",
-                                  }}
-                                >
-                                  Rent
-                                </Box>
-                              ) : (
-                                <Box
-                                  sx={{
-                                    background: "#6B8A7A",
-                                    fontSize: "12px",
-                                    color: "#fff",
-                                    borderRadius: "999px",
-                                    padding: "6px 12px",
-                                    display: "inline-block",
-                                  }}
-                                >
-                                  Sale
-                                </Box>
-                              )}
+                              <Box
+                                sx={{
+                                  background: "#2B6A50",
+                                  fontSize: "12px",
+                                  color: "#fff",
+                                  borderRadius: "999px",
+                                  padding: "6px 12px",
+                                  display: "inline-block",
+                                }}
+                              >
+                                Rent
+                              </Box>
                             </Box>
                           </Box>
                           <Box

@@ -5,6 +5,10 @@ const createListingValidators = [
   body("description").notEmpty().withMessage("description is required"),
   body("address").notEmpty().withMessage("address is required"),
   body("location").notEmpty().withMessage("location is required"),
+  body("type")
+    .optional()
+    .equals("rent")
+    .withMessage("Only rental listings are supported"),
   body("monthlyRent")
     .isFloat({ gt: 0 })
     .withMessage("monthlyRent must be a number greater than 0"),

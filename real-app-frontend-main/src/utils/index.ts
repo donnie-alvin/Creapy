@@ -78,6 +78,61 @@ export const add30Minutes = (timeString: string) => {
   return formattedTime;
 };
 
+function trimTrailingSlashes(value: string) {
+  return value.replace(/\/+$/, "");
+}
+
+function normalizeBaseUrl(value: string) {
+  const trimmedValue = value.trim();
+  if (!trimmedValue) return "";
+
+  if (/^https?:\/\//i.test(trimmedValue)) {
+    return trimTrailingSlashes(trimmedValue);
+  }
+
+  const normalizedPath = trimTrailingSlashes(trimmedValue).replace(/^\/+/, "");
+  if (!normalizedPath) return "/";
+
+  return `/${normalizedPath}`;
+}
+
+export function joinUrl(baseUrl: string, path: string) {
+  const normalizedBaseUrl = normalizeBaseUrl(baseUrl);
+  const normalizedPath = path.replace(/^\/+/, "");
+
+  if (!normalizedBaseUrl || normalizedBaseUrl === "/") {
+    return `/${normalizedPath}`;
+  }
+
+  return `${normalizedBaseUrl}/${normalizedPath}`;
+}
+
+export function getApiBaseUrl() {
+  const apiUrl = normalizeBaseUrl(process.env.REACT_APP_API_URL || "");
+  if (apiUrl) return apiUrl;
+
+  const backendUrl = process.env.REACT_APP_BACKEND_URL || "";
+  if (backendUrl) return joinUrl(backendUrl, "api/v1");
+
+  return "";
+}
+
+export function buildUploadSignUrl(contentType: string, folder: string) {
+  const apiBaseUrl = getApiBaseUrl();
+  if (!apiBaseUrl) {
+    throw new Error(
+      "Missing API configuration. Set REACT_APP_API_URL or REACT_APP_BACKEND_URL."
+    );
+  }
+
+  const params = new URLSearchParams({
+    contentType,
+    folder,
+  });
+
+  return `${joinUrl(apiBaseUrl, "uploads/r2-sign")}?${params.toString()}`;
+}
+
 // Salman Muazam => SM
 export function getNameInitials(name: string) {
   const words = name?.split(" ");

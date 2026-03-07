@@ -62,7 +62,8 @@ const listingSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      required: [true, "Please provide the type"],
+      enum: ["rent"],
+      default: "rent",
     },
     offer: {
       type: Boolean,

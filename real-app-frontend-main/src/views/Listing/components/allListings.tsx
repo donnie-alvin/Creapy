@@ -276,6 +276,19 @@ const AllListings = () => {
                               >
                                 Pay Now
                               </AppButton>
+                            ) : item?.status === "inactive" ? (
+                              <AppButton
+                                variant="contained"
+                                sx={{
+                                  background: "#6b7280",
+                                  "&:hover": { background: "#4b5563" },
+                                }}
+                                onClick={() => {
+                                  navigate(`/listings/${item?._id}/pay`);
+                                }}
+                              >
+                                Revive (Pay to Restore)
+                              </AppButton>
                             ) : (
                               <>
                                 <AppButton
@@ -339,33 +352,18 @@ const AllListings = () => {
                             {convertToFormattedDate(item?.publishedAt ?? item?.createdAt)}
                           </Box>
                           <Box>
-                            {item?.type === "rent" ? (
-                              <Box
-                                sx={{
-                                  background: "#2B6A50",
-                                  fontSize: "12px",
-                                  color: "#fff",
-                                  borderRadius: "999px",
-                                  padding: "6px 12px",
-                                  display: "inline-block",
-                                }}
-                              >
-                                Rent
-                              </Box>
-                            ) : (
-                              <Box
-                                sx={{
-                                  background: "#6B8A7A",
-                                  fontSize: "12px",
-                                  color: "#fff",
-                                  borderRadius: "999px",
-                                  padding: "6px 12px",
-                                  display: "inline-block",
-                                }}
-                              >
-                                Sale
-                              </Box>
-                            )}
+                            <Box
+                              sx={{
+                                background: "#2B6A50",
+                                fontSize: "12px",
+                                color: "#fff",
+                                borderRadius: "999px",
+                                padding: "6px 12px",
+                                display: "inline-block",
+                              }}
+                            >
+                              Rent
+                            </Box>
                           </Box>{" "}
                         </Box>
                       </Grid>

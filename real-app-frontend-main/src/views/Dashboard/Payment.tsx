@@ -67,7 +67,9 @@ const ListingPayment = () => {
   const hasVerifiedListingFeePayment = listingPayments.some(
     (payment: any) => payment?.status === "success" && payment?.webhookVerified
   );
-  const canInitiatePayment = listing?.status === "pending_payment";
+  const canInitiatePayment = ["pending_payment", "inactive"].includes(
+    listing?.status
+  );
 
   useEffect(() => {
     if (uiState !== "success" && hasVerifiedListingFeePayment) {
@@ -216,8 +218,9 @@ const ListingPayment = () => {
               sx={{
                 display: "inline-flex",
                 alignItems: "center",
-                background: "#fef3c7",
-                color: "#92400e",
+                background:
+                  listing?.status === "inactive" ? "#f1f5f9" : "#fef3c7",
+                color: listing?.status === "inactive" ? "#64748b" : "#92400e",
                 borderRadius: "999px",
                 padding: "4px 12px",
                 fontSize: "12px",
@@ -225,11 +228,19 @@ const ListingPayment = () => {
                 marginBottom: "16px",
               }}
             >
-              Pending Payment
+              {listing?.status === "inactive"
+                ? "Inactive — Revive Listing"
+                : "Pending Payment"}
             </Box>
-            <Heading sx={{ marginBottom: "8px" }}>Activate Your Listing</Heading>
+            <Heading sx={{ marginBottom: "8px" }}>
+              {listing?.status === "inactive"
+                ? "Revive Your Listing"
+                : "Activate Your Listing"}
+            </Heading>
             <SubHeading sx={{ marginBottom: "16px" }}>
-              Pay the activation fee via EcoCash to publish your listing.
+              {listing?.status === "inactive"
+                ? "Pay the activation fee via EcoCash to restore your listing."
+                : "Pay the activation fee via EcoCash to publish your listing."}
             </SubHeading>
             <Box
               sx={{
@@ -333,8 +344,7 @@ const ListingPayment = () => {
           >
             <FaCheckCircle size={64} color="#16a34a" />
             <Typography variant="h6" sx={{ marginTop: "16px" }}>
-              ✓ Payment confirmed! Your listing is now live in Early Access for 24
-              hours.
+              ✓ Payment confirmed! Your listing is now live.
             </Typography>
             <AppButton
               onClick={() => navigate("/dashboard/landlord")}

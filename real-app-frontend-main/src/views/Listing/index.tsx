@@ -14,7 +14,7 @@ import {
   Radio,
 } from "@mui/material";
 // Utils Imports
-import { onKeyDown } from "../../utils";
+import { buildUploadSignUrl, onKeyDown } from "../../utils";
 // Redux Imports
 import {
   useCreateListingMutation,
@@ -38,6 +38,8 @@ import PrimaryPhoneInput from "../../components/PhoneInput";
 import AppContainer from "../../components/ui/AppContainer";
 import AppCard from "../../components/ui/AppCard";
 import AppButton from "../../components/ui/AppButton";
+import { ZIMBABWE_PROVINCES } from "../../config/zimbabweProvinces";
+import AppSelect from "../../components/ui/AppSelect";
 
 interface listingForm {
   name: string;
@@ -49,6 +51,7 @@ interface listingForm {
   discountedPrice: number;
   bathrooms: number;
   bedrooms: number;
+  totalRooms: number;
   furnished: boolean;
   type: string;
   offer: boolean;
@@ -78,6 +81,7 @@ const CreateListing = () => {
     discountedPrice: 0,
     bathrooms: 1,
     bedrooms: 1,
+    totalRooms: 1,
     furnished: false,
     offer: false,
     type: "rent",
@@ -137,16 +141,11 @@ const CreateListing = () => {
     const token = JSON.parse(localStorage.getItem("user") || "null")?.token;
 
     // 1) Ask backend for signed URL
-    const res = await fetch(
-      `${process.env.REACT_APP_BACKEND_URL}/api/v1/uploads/r2-sign?contentType=${encodeURIComponent(
-        image.type
-      )}&folder=listings`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
-    );
+    const res = await fetch(buildUploadSignUrl(image.type, "listings"), {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
 
     const json = await res.json();
     if (!res.ok) throw new Error(json?.message || "Failed to get signed URL");
@@ -231,7 +230,8 @@ const CreateListing = () => {
       amenities: data.amenities,
       discountedPrice: data.offer ? Number(data.discountedPrice || 0) : 0,
       bathrooms: Number(data.bathrooms),
-      bedrooms: Number(data.bedrooms),
+      bedrooms: data.bedrooms ? Number(data.bedrooms) : null,
+      totalRooms: Number(data.totalRooms),
       furnished: data.furnished,
       type: data.type,
       offer: data.offer,
@@ -327,6 +327,7 @@ const CreateListing = () => {
         discountedPrice: listingData?.data?.discountedPrice,
         bathrooms: listingData?.data?.bathrooms,
         bedrooms: listingData?.data?.bedrooms,
+        totalRooms: listingData?.data?.totalRooms ?? 1,
         furnished: listingData?.data?.furnished,
         type: listingData?.data?.type,
         offer: listingData?.data?.offer,
@@ -490,23 +491,40 @@ const CreateListing = () => {
                           <SubHeading sx={{ marginBottom: "5px" }}>
                             Location / Area
                           </SubHeading>
-                          <PrimaryInput
-                            type="text"
-                            label=""
+                          <AppSelect
                             name="location"
-                            placeholder="e.g., Avondale"
                             value={values.location}
-                            helperText={
-                              errors.location && touched.location
-                                ? (errors.location as string)
-                                : ""
+                            options={ZIMBABWE_PROVINCES}
+                            displayEmpty
+                            onChange={(e: any) =>
+                              setFieldValue("location", e.target.value)
+                            }
+                            onBlur={handleBlur}
+                            renderValue={(selected) =>
+                              selected ? (
+                                selected
+                              ) : (
+                                <span style={{ color: "#94a3b8" }}>
+                                  Select a province
+                                </span>
+                              )
                             }
                             error={
                               errors.location && touched.location ? true : false
                             }
-                            onChange={handleChange}
-                            onBlur={handleBlur}
                           />
+                          {errors.location && touched.location ? (
+                            <Box
+                              sx={{
+                                color: "#d32f2f",
+                                fontSize: "0.75rem",
+                                marginTop: "3px",
+                                marginLeft: "14px",
+                              }}
+                            >
+                              {errors.location as string}
+                            </Box>
+                          ) : null}
                         </Box>
                         <Box
                           sx={{
@@ -518,15 +536,39 @@ const CreateListing = () => {
                             flexDirection: { xs: "column", sm: "row" },
                           }}
                         >
-                          <Box sx={{ width: "100%" }}>
+                          <Box sx={{ width: { xs: "100%", sm: "50%" } }}>
                             <SubHeading sx={{ marginBottom: "5px" }}>
-                              Rooms
+                              Total Rooms *
+                            </SubHeading>
+                            <PrimaryInput
+                              type="number"
+                              label=""
+                              name="totalRooms"
+                              placeholder="Total Rooms"
+                              value={values.totalRooms}
+                              helperText={
+                                errors.totalRooms && touched.totalRooms
+                                  ? errors.totalRooms
+                                  : ""
+                              }
+                              error={
+                                errors.totalRooms && touched.totalRooms
+                                  ? true
+                                  : false
+                              }
+                              onChange={handleChange}
+                              onBlur={handleBlur}
+                            />
+                          </Box>
+                          <Box sx={{ width: { xs: "100%", sm: "50%" } }}>
+                            <SubHeading sx={{ marginBottom: "5px" }}>
+                              Bedrooms (optional)
                             </SubHeading>
                             <PrimaryInput
                               type="number"
                               label=""
                               name="bedrooms"
-                              placeholder="Rooms"
+                              placeholder="Bedrooms"
                               value={values.bedrooms}
                               helperText={
                                 errors.bedrooms && touched.bedrooms

@@ -2,10 +2,13 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const mongoose = require("mongoose");
 
 const paymentController = require("../controllers/paymentController");
 const webhookController = require("../controllers/webhookController");
 const listingController = require("../controllers/listingController");
+const { createListingValidators } = require("../middleware/listingValidators");
+const validate = require("../middleware/validate");
 const Payment = require("../models/paymentModel");
 const Listing = require("../models/listingModel");
 const User = require("../models/userModel");
@@ -53,6 +56,31 @@ const invokeWebhookHandler = (handler, req) =>
     handler(req, res);
   });
 
+const runValidationChain = async (validators, body) => {
+  const req = { body };
+
+  for (const validator of validators) {
+    await validator.run(req);
+  }
+
+  return new Promise((resolve, reject) => {
+    const res = {
+      statusCode: 200,
+      body: null,
+      status(code) {
+        this.statusCode = code;
+        return this;
+      },
+      json(payload) {
+        this.body = payload;
+        resolve({ statusCode: this.statusCode, body: this.body });
+      },
+    };
+
+    validate(req, res, () => resolve({ statusCode: 200, body: null }));
+  });
+};
+
 test("listing routes keep browse/view public and publish landlord-only", async () => {
   const listingRoutes = require("../routes/listingRoutes");
   const authController = require("../controllers/authController");
@@ -75,6 +103,9 @@ test("listing routes keep browse/view public and publish landlord-only", async (
   const updateLayer = routeLayers.find(
     (layer) => layer.route.path === "/:id" && layer.route.methods.put
   );
+  const reviveLayer = routeLayers.find(
+    (layer) => layer.route.path === "/:id/revive" && layer.route.methods.put
+  );
   const protectIndex = stack.findIndex(
     (layer) => layer.handle === authController.protect
   );
@@ -84,6 +115,7 @@ test("listing routes keep browse/view public and publish landlord-only", async (
   assert.ok(publicLegacyLayer);
   assert.ok(createLayer);
   assert.ok(updateLayer);
+  assert.equal(reviveLayer, undefined);
   assert.ok(protectIndex > -1);
 
   const publicListHandlers = publicListLayer.route.stack.map((layer) => layer.handle);
@@ -145,6 +177,63 @@ test("landlord can initiate listing fee payment", async () => {
   assert.ok(result.body.data.transactionRef);
   assert.equal(capturedPayment.type, "listing_fee");
   assert.equal(capturedPayment.status, "pending");
+});
+
+test("landlord can initiate listing fee payment for inactive listing revival", async () => {
+  const originalCreate = Payment.create;
+  const originalFindById = Listing.findById;
+
+  let capturedPayment = null;
+
+  Payment.create = async (data) => {
+    capturedPayment = data;
+    return { _id: "pay_inactive", ...data, status: "pending" };
+  };
+
+  Listing.findById = async () => ({
+    _id: "listing_inactive",
+    user: "u_1",
+    status: "inactive",
+  });
+
+  const result = await invokeController(paymentController.initiateListingFee, {
+    user: {
+      _id: "u_1",
+      toObject: () => ({ _id: "u_1", email: "test@example.com", phone: "256700000000" }),
+    },
+    body: { listingId: "listing_inactive", phone: "256700000000" },
+  });
+
+  Payment.create = originalCreate;
+  Listing.findById = originalFindById;
+
+  assert.equal(result.statusCode, 201);
+  assert.equal(result.body.status, "success");
+  assert.equal(capturedPayment.type, "listing_fee");
+});
+
+test("listing fee payment rejects already active listing", async () => {
+  const originalFindById = Listing.findById;
+
+  Listing.findById = async () => ({
+    _id: "listing_active",
+    user: "u_1",
+    status: "active",
+    paymentDeadline: null,
+  });
+
+  const result = await invokeController(paymentController.initiateListingFee, {
+    user: {
+      _id: "u_1",
+      toObject: () => ({ _id: "u_1", email: "test@example.com" }),
+    },
+    body: { listingId: "listing_active", phone: "256700000000" },
+  });
+
+  Listing.findById = originalFindById;
+
+  assert.equal(result.error.statusCode, 400);
+  assert.equal(result.error.message, "Listing is not awaiting payment");
 });
 
 test("tenant can initiate premium subscription payment", async () => {
@@ -361,4 +450,73 @@ test("promoteExpiredEarlyAccess transitions expired listings to active", async (
   assert.deepEqual(updateCalls[0].filter.status, "early_access");
   assert.equal(updateCalls[0].filter.earlyAccessUntil.$lt instanceof Date, true);
   assert.deepEqual(updateCalls[0].update, { $set: { status: "active" } });
+});
+
+test("create listing validators reject sale listings", async () => {
+  const result = await runValidationChain(createListingValidators, {
+    name: "Sample",
+    description: "desc",
+    address: "addr",
+    location: "Kampala",
+    type: "sale",
+    monthlyRent: 1000,
+    bedrooms: 2,
+    bathrooms: 1,
+  });
+
+  assert.equal(result.statusCode, 400);
+  assert.deepEqual(result.body.errors, [
+    { field: "type", message: "Only rental listings are supported" },
+  ]);
+});
+
+test("create listing validators accept rent listings", async () => {
+  const result = await runValidationChain(createListingValidators, {
+    name: "Sample",
+    description: "desc",
+    address: "addr",
+    location: "Kampala",
+    type: "rent",
+    monthlyRent: 1000,
+    bedrooms: 2,
+    bathrooms: 1,
+  });
+
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.body, null);
+});
+
+test("create listing validators accept omitted type and listing model defaults it to rent", async () => {
+  const result = await runValidationChain(createListingValidators, {
+    name: "Sample",
+    description: "desc",
+    address: "addr",
+    location: "Kampala",
+    monthlyRent: 1000,
+    bedrooms: 2,
+    bathrooms: 1,
+  });
+
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.body, null);
+
+  const listing = new Listing({
+    name: "Sample",
+    description: "desc",
+    address: "addr",
+    phoneNumber: "256700000000",
+    monthlyRent: 1000,
+    location: "Kampala",
+    bathrooms: 1,
+    bedrooms: 2,
+    furnished: false,
+    offer: false,
+    imageUrls: ["image.jpg"],
+    user: new mongoose.Types.ObjectId(),
+  });
+
+  const validationError = listing.validateSync();
+
+  assert.equal(validationError, undefined);
+  assert.equal(listing.type, "rent");
 });
