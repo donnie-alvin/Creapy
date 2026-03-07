@@ -51,10 +51,16 @@ const listingSchema = new mongoose.Schema(
     bathrooms: {
       type: Number,
       required: [true, "Please provide the number of bathrooms"],
+      min: [1, "Bathrooms must be at least 1"],
     },
     bedrooms: {
       type: Number,
-      required: [true, "Please provide the number of bedrooms"],
+      min: [1, "Bedrooms must be at least 1"],
+    },
+    totalRooms: {
+      type: Number,
+      required: [true, "Please provide the total number of rooms"],
+      min: [1, "Total rooms must be at least 1"],
     },
     furnished: {
       type: Boolean,

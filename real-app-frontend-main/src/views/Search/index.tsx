@@ -100,6 +100,27 @@ const SearchPage = () => {
     return "all";
   };
 
+  const hasAnySupportedFilterParam = (urlParams: URLSearchParams) => {
+    const supportedParams = [
+      "searchTerm",
+      "location",
+      "minRent",
+      "maxRent",
+      "minBedrooms",
+      "solar",
+      "borehole",
+      "security",
+      "internet",
+      "type",
+      "parking",
+      "furnished",
+      "offer",
+      "sort",
+    ];
+
+    return supportedParams.some((param) => urlParams.has(param));
+  };
+
   const handleSearch = (event: any) => {
     let value = event.target.value.toLowerCase();
     setSideBarData({ ...sideBarData, searchTerm: value });
@@ -124,14 +145,7 @@ const SearchPage = () => {
     const internetFromUrl = urlParams.get("internet");
     const normalizedType = normalizeType(typeFromUrl);
 
-    if (
-      searchTermFromUrl ||
-      typeFromUrl ||
-      parkingFromUrl ||
-      furnishedFromUrl ||
-      offerFromUrl ||
-      sortFromUrl
-    ) {
+    if (hasAnySupportedFilterParam(urlParams)) {
       setSideBarData({
         searchTerm: searchTermFromUrl || "",
         location: locationFromUrl || "",

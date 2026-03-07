@@ -93,6 +93,10 @@ const matchesSavedSearch = (search, listing) => {
   const minBeds = Number(c.minBedrooms || 0);
   if (minBeds && beds < minBeds) return false;
 
+  const rooms = Number(listing.totalRooms || 0);
+  const minRooms = Number(c.minTotalRooms || 0);
+  if (minRooms && rooms < minRooms) return false;
+
   const wantedAmenities = (c.amenities || {});
   const listingAmenities = listing.amenities || {};
   for (const key of Object.keys(wantedAmenities)) {
@@ -349,6 +353,11 @@ exports.getListings = catchAsync(async (req, res, next) => {
     filter.bedrooms = { $gte: minBedrooms };
   }
 
+  const minTotalRooms = Number(req.query.minTotalRooms || 0);
+  if (minTotalRooms) {
+    filter.totalRooms = { $gte: minTotalRooms };
+  }
+
   // 3e) Amenities (solar, borehole, security, parking, internet)
   const amenityKeys = ["solar", "borehole", "security", "parking", "internet"];
   for (const key of amenityKeys) {
@@ -470,6 +479,7 @@ exports.getHomeGroupedByLocation = catchAsync(async (req, res, next) => {
             location: "$_locationTrimmed",
             monthlyRent: "$monthlyRent",
             bedrooms: "$bedrooms",
+            totalRooms: "$totalRooms",
             amenities: "$amenities",
             image: "$_fallbackImage",
             images: { $ifNull: ["$images", "$imageUrls"] },

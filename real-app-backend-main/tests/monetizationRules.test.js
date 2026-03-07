@@ -461,6 +461,7 @@ test("create listing validators reject sale listings", async () => {
     type: "sale",
     monthlyRent: 1000,
     bedrooms: 2,
+    totalRooms: 3,
     bathrooms: 1,
   });
 
@@ -479,6 +480,7 @@ test("create listing validators accept rent listings", async () => {
     type: "rent",
     monthlyRent: 1000,
     bedrooms: 2,
+    totalRooms: 3,
     bathrooms: 1,
   });
 
@@ -494,6 +496,7 @@ test("create listing validators accept omitted type and listing model defaults i
     location: "Kampala",
     monthlyRent: 1000,
     bedrooms: 2,
+    totalRooms: 3,
     bathrooms: 1,
   });
 
@@ -509,6 +512,7 @@ test("create listing validators accept omitted type and listing model defaults i
     location: "Kampala",
     bathrooms: 1,
     bedrooms: 2,
+    totalRooms: 3,
     furnished: false,
     offer: false,
     imageUrls: ["image.jpg"],
@@ -519,4 +523,40 @@ test("create listing validators accept omitted type and listing model defaults i
 
   assert.equal(validationError, undefined);
   assert.equal(listing.type, "rent");
+});
+
+test("create listing validators accept null bedrooms when total rooms is provided", async () => {
+  const result = await runValidationChain(createListingValidators, {
+    name: "Sample",
+    description: "desc",
+    address: "addr",
+    location: "Kampala",
+    monthlyRent: 1000,
+    bedrooms: null,
+    totalRooms: 3,
+    bathrooms: 1,
+  });
+
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.body, null);
+
+  const listing = new Listing({
+    name: "Sample",
+    description: "desc",
+    address: "addr",
+    phoneNumber: "256700000000",
+    monthlyRent: 1000,
+    location: "Kampala",
+    bathrooms: 1,
+    bedrooms: null,
+    totalRooms: 3,
+    furnished: false,
+    offer: false,
+    imageUrls: ["image.jpg"],
+    user: new mongoose.Types.ObjectId(),
+  });
+
+  const validationError = listing.validateSync();
+
+  assert.equal(validationError, undefined);
 });

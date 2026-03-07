@@ -332,8 +332,12 @@ const Home = () => {
               >
                 {[
                   {
-                    label: "Under $500",
-                    query: "maxRent=500",
+                    label: "Under $200",
+                    query: "maxRent=200",
+                  },
+                  {
+                    label: "$200 - $500",
+                    query: "minRent=200&maxRent=500",
                   },
                   {
                     label: "$500 - $1,000",
@@ -344,12 +348,8 @@ const Home = () => {
                     query: "minRent=1000&maxRent=2000",
                   },
                   {
-                    label: "$2,000 - $5,000",
-                    query: "minRent=2000&maxRent=5000",
-                  },
-                  {
-                    label: "$5,000+",
-                    query: "minRent=5000",
+                    label: "Over $2,000",
+                    query: "minRent=2000",
                   },
                 ].map((band) => (
                   <MenuItem
