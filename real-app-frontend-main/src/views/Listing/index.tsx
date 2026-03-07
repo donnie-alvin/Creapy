@@ -500,15 +500,10 @@ const CreateListing = () => {
                               setFieldValue("location", e.target.value)
                             }
                             onBlur={handleBlur}
-                            renderValue={(selected) =>
-                              selected ? (
-                                selected
-                              ) : (
-                                <span style={{ color: "#94a3b8" }}>
-                                  Select a province
-                                </span>
-                              )
-                            }
+                            renderValue={(selected) => {
+                              const province = selected as string;
+                              return province || "Select a province";
+                            }}
                             error={
                               errors.location && touched.location ? true : false
                             }

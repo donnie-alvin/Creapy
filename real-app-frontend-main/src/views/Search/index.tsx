@@ -253,9 +253,10 @@ const SearchPage = () => {
                   }
                   size="small"
                   displayEmpty
-                  renderValue={(selected) =>
-                    selected ? selected : "All Provinces"
-                  }
+                  renderValue={(selected) => {
+                    const province = selected as string;
+                    return province || "All Provinces";
+                  }}
                 />
               </Box>
 
