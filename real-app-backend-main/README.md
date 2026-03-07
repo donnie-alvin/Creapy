@@ -72,3 +72,25 @@ npm run test:home-feeds
 
 This validates the two home feed controller methods and their core query/pipeline
 behavior with mocked model calls.
+
+## Seeding via API
+
+`npm run seed` now seeds through the backend HTTP API instead of connecting to
+MongoDB directly. This keeps password hashing, auth, and listing validation on
+the normal application path.
+
+Use a local backend by default:
+
+```bash
+npm run seed
+```
+
+Or seed a deployed backend explicitly:
+
+```bash
+SEED_API_BASE=https://your-backend-url.amplifyapp.com npm run seed
+```
+
+The script is idempotent for reruns. It logs in existing demo users when
+possible, recreates any missing ones, and skips listing creation for landlords
+who already have an active listing.

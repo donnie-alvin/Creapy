@@ -50,6 +50,7 @@ Amplify backend hosting expects the build output in the following structure:
 | `R2_BUCKET` | Cloudflare R2 bucket name |
 | `R2_PUBLIC_BASE_URL` | Public base URL for stored assets |
 | `FRONTEND_URL` | Must be the Amplify frontend origin (no path) |
+| `SEED_API_BASE` | Optional base URL for `npm run seed` when seeding a deployed backend |
 
 ## Frontend environment variables
 

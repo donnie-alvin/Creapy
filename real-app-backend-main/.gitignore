@@ -1,6 +1,8 @@
 node_modules
 
 seed
+!seed/
+!seed/seed.js
 
 /dist
 
