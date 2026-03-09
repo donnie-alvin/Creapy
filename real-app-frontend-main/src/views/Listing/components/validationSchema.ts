@@ -1,10 +1,19 @@
 import * as Yup from "yup";
 
+const optionalNumber = Yup.number()
+  .transform((value, originalValue) => {
+    if (originalValue === "" || originalValue == null) {
+      return null;
+    }
+    return Number.isNaN(value) ? null : value;
+  })
+  .nullable();
+
 export const listingSchema = Yup.object().shape({
   name: Yup.string().required("Name is required").nullable(),
   description: Yup.string().required("Description is required").nullable(),
   address: Yup.string().required("Address is required").nullable(),
-  location: Yup.string().required("Location / area is required").nullable(),
+  location: Yup.string().required("Province is required").nullable(),
   phoneNumber: Yup.string()
     .required("Contact number is required")
     .min(12, "Contact number is required")
@@ -23,17 +32,14 @@ export const listingSchema = Yup.object().shape({
         message: "Less than or equal to Regular Price",
       });
     }),
-  bathrooms: Yup.number()
+  bathrooms: optionalNumber
     .required("Bathrooms is required")
-    .nullable()
     .positive("Bathrooms must be greater than 0"),
-  bedrooms: Yup.number()
+  bedrooms: optionalNumber
     .optional()
-    .nullable()
     .positive("Bedrooms must be greater than 0"),
-  totalRooms: Yup.number()
+  totalRooms: optionalNumber
     .required("Total rooms is required")
-    .nullable()
     .positive("Total rooms must be greater than 0"),
   furnished: Yup.boolean().required("Furnished is required").nullable(),
   type: Yup.string().required("Type is required").nullable(),

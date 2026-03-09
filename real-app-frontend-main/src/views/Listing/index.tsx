@@ -50,8 +50,8 @@ interface listingForm {
   regularPrice: number;
   discountedPrice: number;
   bathrooms: number;
-  bedrooms: number;
-  totalRooms: number;
+  bedrooms: number | "";
+  totalRooms: number | "";
   furnished: boolean;
   type: string;
   offer: boolean;
@@ -80,7 +80,7 @@ const CreateListing = () => {
     regularPrice: 25000,
     discountedPrice: 0,
     bathrooms: 1,
-    bedrooms: 1,
+    bedrooms: "",
     totalRooms: 1,
     furnished: false,
     offer: false,
@@ -326,7 +326,7 @@ const CreateListing = () => {
         regularPrice: listingData?.data?.regularPrice || listingData?.data?.monthlyRent,
         discountedPrice: listingData?.data?.discountedPrice,
         bathrooms: listingData?.data?.bathrooms,
-        bedrooms: listingData?.data?.bedrooms,
+        bedrooms: listingData?.data?.bedrooms ?? "",
         totalRooms: listingData?.data?.totalRooms ?? 1,
         furnished: listingData?.data?.furnished,
         type: listingData?.data?.type,
@@ -489,12 +489,18 @@ const CreateListing = () => {
                         </Box>
                         <Box sx={{ width: "100%", marginTop: "10px" }}>
                           <SubHeading sx={{ marginBottom: "5px" }}>
-                            Location / Area
+                            Province
                           </SubHeading>
                           <AppSelect
                             name="location"
                             value={values.location}
-                            options={ZIMBABWE_PROVINCES}
+                            options={[
+                              {
+                                label: "Select a province",
+                                value: "",
+                              },
+                              ...ZIMBABWE_PROVINCES,
+                            ]}
                             displayEmpty
                             onChange={(e: any) =>
                               setFieldValue("location", e.target.value)
@@ -539,12 +545,12 @@ const CreateListing = () => {
                               type="number"
                               label=""
                               name="totalRooms"
-                              placeholder="Total Rooms"
+                              placeholder="e.g. 4"
                               value={values.totalRooms}
                               helperText={
                                 errors.totalRooms && touched.totalRooms
                                   ? errors.totalRooms
-                                  : ""
+                                  : "Enter the total number of rooms in the property."
                               }
                               error={
                                 errors.totalRooms && touched.totalRooms
@@ -563,12 +569,12 @@ const CreateListing = () => {
                               type="number"
                               label=""
                               name="bedrooms"
-                              placeholder="Bedrooms"
+                              placeholder="e.g. 2"
                               value={values.bedrooms}
                               helperText={
                                 errors.bedrooms && touched.bedrooms
                                   ? errors.bedrooms
-                                  : ""
+                                  : "Leave blank if the property does not have a separate bedroom count."
                               }
                               error={
                                 errors.bedrooms && touched.bedrooms

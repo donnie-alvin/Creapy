@@ -595,7 +595,7 @@ const SearchPage = () => {
                                 <FaBed
                                   style={{ color: "#334155", marginTop: "3px" }}
                                 />
-                                {item?.bedrooms} Rooms
+                                {item?.totalRooms ?? item?.bedrooms} Rooms
                               </Box>
                               <Box sx={iconStyle}>
                                 <FaBath

@@ -1,7 +1,7 @@
 // MUI Imports
 import { Box, Grid, Menu, MenuItem } from "@mui/material";
 // React Imports
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 // Custom Imports
 import { Heading, SubHeading } from "../../components/Heading";
@@ -15,14 +15,8 @@ import { PiShootingStarThin } from "react-icons/pi";
 import {
   useGetHomeGroupedByLocationQuery,
   useGetHomeHighlightedQuery,
-  useSearchListingsQuery,
 } from "../../redux/api/listingApiSlice";
 import OverlayLoader from "../../components/Spinner/OverlayLoader";
-// React Icons
-import { FaLocationDot } from "react-icons/fa6";
-import { FaBed } from "react-icons/fa";
-import { FaBath } from "react-icons/fa";
-import { thousandSeparatorNumber } from "../../utils";
 import AppContainer from "../../components/ui/AppContainer";
 import AppCard from "../../components/ui/AppCard";
 import AppButton from "../../components/ui/AppButton";
@@ -41,15 +35,6 @@ const Banner = {
   cursor: "pointer",
 };
 
-const iconStyle = {
-  display: "flex",
-  alignItems: "center",
-  gap: "5px",
-  color: "#334155",
-  fontWeight: "bold",
-  fontSize: "13px",
-};
-
 const images = [
   "https://images.unsplash.com/photo-1523217582562-09d0def993a6?q=80&w=1780&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
   "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?q=80&w=2070&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
@@ -65,15 +50,6 @@ const Home = () => {
   const [priceAnchor, setPriceAnchor] = useState<null | HTMLElement>(null);
   const [amenitiesAnchor, setAmenitiesAnchor] = useState<null | HTMLElement>(null);
 
-  const offerString = "offer=true&limit=4";
-  const rentString = "type=rent&limit=4";
-
-  const { data: offerData, isLoading: offerLoading } =
-    useSearchListingsQuery(offerString);
-
-  const { data: rentData, isLoading: rentLoading } =
-    useSearchListingsQuery(rentString);
-
   const { data: highlightedData, isLoading: highlightedLoading } =
     useGetHomeHighlightedQuery(5);
   const {
@@ -82,16 +58,8 @@ const Home = () => {
     isError: groupedByLocationError,
   } = useGetHomeGroupedByLocationQuery({ locationsLimit: 6, perLocation: 3 });
 
-  // Keep top home cards driven by highlighted endpoint while preserving
-  // legacy offer data as a graceful fallback.
-  const highlightedListings =
-    highlightedData?.data?.length > 0 ? highlightedData?.data : offerData?.data || [];
   const highlightedHeroListings = highlightedData?.data || [];
-
-  const groupedSlides = useMemo(
-    () => groupedByLocationData?.data || [],
-    [groupedByLocationData?.data]
-  );
+  const groupedSlides = groupedByLocationData?.data || [];
 
   const getListingImage = (item: any) =>
     item?.image || item?.images?.[0] || item?.imageUrls?.[0] || null;
@@ -103,10 +71,7 @@ const Home = () => {
 
   useEffect(() => {
     const anyLoading =
-      offerLoading ||
-      rentLoading ||
-      highlightedLoading ||
-      groupedByLocationLoading;
+      highlightedLoading || groupedByLocationLoading;
     if (!anyLoading) {
       setShowOverlay(false);
       setTimedOut(false);
@@ -125,7 +90,28 @@ const Home = () => {
       window.clearTimeout(t1);
       window.clearTimeout(t2);
     };
-  }, [offerLoading, rentLoading, highlightedLoading, groupedByLocationLoading]);
+  }, [highlightedLoading, groupedByLocationLoading]);
+
+  const navigateToSearch = (params: Record<string, string>) => {
+    const urlParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value) {
+        urlParams.set(key, value);
+      }
+    });
+    navigate(`/search?${urlParams.toString()}`);
+  };
+
+  const heroDropdownButtonSx = {
+    background: "rgba(255,255,255,0.15)",
+    color: "#fff",
+    borderRadius: "999px",
+    padding: "6px 14px",
+    fontSize: "13px",
+    cursor: "pointer",
+    border: "none",
+    fontWeight: 600,
+  };
 
   const handleHeroSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -240,16 +226,7 @@ const Home = () => {
                 onClick={(e: React.MouseEvent<HTMLElement>) =>
                   setLocationAnchor(e.currentTarget)
                 }
-                sx={{
-                  background: "rgba(255,255,255,0.15)",
-                  color: "#fff",
-                  borderRadius: "999px",
-                  padding: "6px 14px",
-                  fontSize: "13px",
-                  cursor: "pointer",
-                  border: "none",
-                  fontWeight: 600,
-                }}
+                sx={heroDropdownButtonSx}
               >
                 📍 Location ▾
               </Box>
@@ -263,9 +240,7 @@ const Home = () => {
                     key={province.value}
                     onClick={() => {
                       setLocationAnchor(null);
-                      navigate(
-                        `/search?location=${encodeURIComponent(province.value)}`
-                      );
+                      navigateToSearch({ location: province.value });
                     }}
                   >
                     {province.label}
@@ -277,16 +252,7 @@ const Home = () => {
                 onClick={(e: React.MouseEvent<HTMLElement>) =>
                   setRoomsAnchor(e.currentTarget)
                 }
-                sx={{
-                  background: "rgba(255,255,255,0.15)",
-                  color: "#fff",
-                  borderRadius: "999px",
-                  padding: "6px 14px",
-                  fontSize: "13px",
-                  cursor: "pointer",
-                  border: "none",
-                  fontWeight: 600,
-                }}
+                sx={heroDropdownButtonSx}
               >
                 🏠 Rooms ▾
               </Box>
@@ -300,10 +266,10 @@ const Home = () => {
                     key={rooms}
                     onClick={() => {
                       setRoomsAnchor(null);
-                      navigate(`/search?minBedrooms=${rooms}`);
+                      navigateToSearch({ minBedrooms: String(rooms) });
                     }}
                   >
-                    {rooms}
+                    {rooms}+ rooms
                   </MenuItem>
                 ))}
               </Menu>
@@ -312,16 +278,7 @@ const Home = () => {
                 onClick={(e: React.MouseEvent<HTMLElement>) =>
                   setPriceAnchor(e.currentTarget)
                 }
-                sx={{
-                  background: "rgba(255,255,255,0.15)",
-                  color: "#fff",
-                  borderRadius: "999px",
-                  padding: "6px 14px",
-                  fontSize: "13px",
-                  cursor: "pointer",
-                  border: "none",
-                  fontWeight: 600,
-                }}
+                sx={heroDropdownButtonSx}
               >
                 💰 Price ▾
               </Box>
@@ -368,16 +325,7 @@ const Home = () => {
                 onClick={(e: React.MouseEvent<HTMLElement>) =>
                   setAmenitiesAnchor(e.currentTarget)
                 }
-                sx={{
-                  background: "rgba(255,255,255,0.15)",
-                  color: "#fff",
-                  borderRadius: "999px",
-                  padding: "6px 14px",
-                  fontSize: "13px",
-                  cursor: "pointer",
-                  border: "none",
-                  fontWeight: 600,
-                }}
+                sx={heroDropdownButtonSx}
               >
                 ✨ Amenities ▾
               </Box>
@@ -623,351 +571,9 @@ const Home = () => {
       <AppContainer>
         <Box
           sx={{
-            marginBottom: "100px",
-            "@media (max-width: 600px)": {
-              marginBottom: "10px",
-            },
+            marginBottom: "40px",
           }}
         >
-          <Heading sx={{ color: "#475569" }}>Featured Listings</Heading>
-          <Box
-            sx={{
-              color: "#1e40af",
-              fontSize: "13px",
-              fontWeight: 400,
-              cursor: "pointer",
-              "&:hover": {
-                textDecoration: "underline",
-              },
-            }}
-            onClick={() => {
-              navigate("/search");
-            }}
-          >
-            View all listings
-          </Box>
-          <Box sx={{ margin: "15px 0" }}>
-            <Grid container spacing={2}>
-              {highlightedListings?.map((item: any, index: number) => (
-                <Grid item xs={12} md={4} key={index}>
-                  <AppCard
-                    sx={{ marginBottom: "20px", cursor: "pointer" }}
-                    onClick={() => {
-                      navigate(`/listing/${item._id}`);
-                    }}
-                  >
-                        <Box
-                          sx={{
-                            height: { xs: 180, md: 200 },
-                            overflow: "hidden",
-                            position: "relative",
-                            "&:hover img": {
-                              transform: "scale(1.1)",
-                            },
-                          }}
-                        >
-                        <img
-                          src={item?.imageUrls[0]}
-                          alt="listing"
-                          height="100%"
-                          width="100%"
-                          style={{
-                            objectFit: "cover",
-                            borderRadius: "12px 12px 0 0",
-                            transition: "transform 0.3s ease",
-                          }}
-                        />
-                        {item?.status === "early_access" ? (
-                          <Box
-                            sx={{
-                              background: "#dbeafe",
-                              color: "#1e40af",
-                              fontSize: "11px",
-                              fontWeight: 700,
-                              borderRadius: "999px",
-                              padding: "3px 10px",
-                              display: "inline-block",
-                              position: "absolute",
-                              top: 8,
-                              left: 8,
-                              zIndex: 1,
-                              pointerEvents: "none",
-                            }}
-                          >
-                            ⚡ Early Access
-                          </Box>
-                        ) : null}
-                      </Box>
-                      <Box sx={{ padding: "18px 16px" }}>
-                        <SubHeading
-                          sx={{
-                            fontWeight: 600,
-                            fontSize: "18px",
-                            color: "#1f2937",
-                          }}
-                        >
-                          {item?.name?.length > 30
-                            ? item?.name?.substring(0, 30) + "..."
-                            : item?.name}
-                        </SubHeading>
-                        <Box
-                          sx={{
-                            marginTop: "5px",
-                            color: "text.secondary",
-                            fontSize: "13px",
-                            fontWeight: 500,
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "5px",
-                          }}
-                        >
-                          <FaLocationDot style={{ color: "#15803d" }} />
-                          {item?.address}
-                        </Box>
-                        <Box
-                          sx={{
-                            marginTop: "5px",
-                            color: "text.secondary",
-                            fontSize: "13px",
-                            minHeight: "44px",
-                          }}
-                        >
-                          {item?.description?.length > 150
-                            ? item?.description?.substring(0, 150) + "..."
-                            : item?.description}
-                        </Box>
-                        <Box
-                          sx={{
-                            color: "text.primary",
-                            fontWeight: 600,
-                            fontSize: "16px",
-                            marginTop: "10px",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            gap: "5px",
-                          }}
-                        >
-                          USD{" "}
-                          {thousandSeparatorNumber(
-                            item?.discountedPrice != null
-                              ? (item?.monthlyRent || item?.regularPrice) -
-                                  item?.discountedPrice
-                              : item?.monthlyRent || item?.regularPrice
-                          )}{" "}
-                          {item?.type === "rent" ? "/ month" : ""}
-                          <Box
-                            sx={{
-                              background: "#2B6A50",
-                              fontSize: "12px",
-                              color: "#fff",
-                              borderRadius: "999px",
-                              padding: "6px 12px",
-                              display: "inline-block",
-                            }}
-                          >
-                            Rent
-                          </Box>
-                        </Box>
-                        <Box
-                          sx={{
-                            marginTop: "7px",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                          }}
-                        >
-                          <Box sx={{ display: "flex", gap: 1 }}>
-                            <Box sx={iconStyle}>
-                              <FaBed
-                                style={{ color: "#334155", marginTop: "3px" }}
-                              />
-                              {item?.bedrooms} Rooms
-                            </Box>
-                            <Box sx={iconStyle}>
-                              <FaBath
-                                style={{ color: "#334155", marginTop: "3px" }}
-                              />
-                              {item?.bathrooms} Baths
-                            </Box>
-                          </Box>
-                        </Box>
-                      </Box>
-                    </AppCard>
-                </Grid>
-              ))}
-            </Grid>
-          </Box>
-          {/* Rent Data */}
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
-            <Heading
-              sx={{ color: "#475569", marginTop: "30px", display: "block" }}
-            >
-              Places for Rent
-            </Heading>
-            <Box
-              sx={{
-                color: "#1e40af",
-                fontSize: "13px",
-                fontWeight: 400,
-                cursor: "pointer",
-                "&:hover": {
-                  textDecoration: "underline",
-                },
-              }}
-              onClick={() => {
-                navigate(`/search?type=rent`);
-              }}
-            >
-              Show more offers for rent
-            </Box>
-          </Box>
-          <Box sx={{ margin: "15px 0" }}>
-            <Grid container spacing={2}>
-              {rentData?.data?.map((item: any, index: number) => (
-                <Grid item xs={12} md={4} key={index}>
-                  <AppCard
-                    sx={{ marginBottom: "20px", cursor: "pointer" }}
-                    onClick={() => {
-                      navigate(`/listing/${item._id}`);
-                    }}
-                  >
-                    <Box
-                      sx={{
-                        height: { xs: 180, md: 200 },
-                        overflow: "hidden",
-                        position: "relative",
-                        "&:hover img": {
-                          transform: "scale(1.1)",
-                        },
-                      }}
-                    >
-                      <img
-                        src={item?.imageUrls[0]}
-                        alt="listing"
-                        height="100%"
-                        width="100%"
-                        style={{
-                          objectFit: "cover",
-                          borderRadius: "12px 12px 0 0",
-                          transition: "transform 0.3s ease",
-                        }}
-                      />
-                      {item?.status === "early_access" ? (
-                        <Box
-                          sx={{
-                            background: "#dbeafe",
-                            color: "#1e40af",
-                            fontSize: "11px",
-                            fontWeight: 700,
-                            borderRadius: "999px",
-                            padding: "3px 10px",
-                            display: "inline-block",
-                            position: "absolute",
-                            top: 8,
-                            left: 8,
-                            zIndex: 1,
-                            pointerEvents: "none",
-                          }}
-                        >
-                          ⚡ Early Access
-                        </Box>
-                      ) : null}
-                    </Box>
-                    <Box sx={{ padding: "18px 16px" }}>
-                      <SubHeading
-                        sx={{
-                          fontWeight: 600,
-                          fontSize: "18px",
-                          color: "#1f2937",
-                        }}
-                      >
-                        {item?.name?.length > 30
-                          ? item?.name?.substring(0, 30) + "..."
-                          : item?.name}
-                      </SubHeading>
-                      <Box
-                        sx={{
-                          marginTop: "5px",
-                          color: "text.secondary",
-                          fontSize: "13px",
-                          fontWeight: 500,
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "5px",
-                        }}
-                      >
-                        <FaLocationDot style={{ color: "#15803d" }} />
-                        {item?.address}
-                      </Box>
-                      <Box
-                        sx={{
-                          marginTop: "5px",
-                          color: "text.secondary",
-                          fontSize: "13px",
-                          minHeight: "44px",
-                        }}
-                      >
-                        {item?.description?.length > 150
-                          ? item?.description?.substring(0, 150) + "..."
-                          : item?.description}
-                      </Box>
-                      <Box
-                        sx={{
-                          color: "text.primary",
-                          fontWeight: 600,
-                          fontSize: "16px",
-                          marginTop: "10px",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          gap: "5px",
-                        }}
-                      >
-                        USD {thousandSeparatorNumber(item?.monthlyRent || item?.regularPrice)}{" "}
-                        {item?.type === "rent" ? "/ month" : ""}
-                        <Box
-                          sx={{
-                            background: "#2B6A50",
-                            fontSize: "12px",
-                            color: "#fff",
-                            borderRadius: "999px",
-                            padding: "6px 12px",
-                            display: "inline-block",
-                          }}
-                        >
-                          Rent
-                        </Box>
-                      </Box>
-                      <Box
-                        sx={{
-                          marginTop: "7px",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                        }}
-                      >
-                        <Box sx={{ display: "flex", gap: 1 }}>
-                          <Box sx={iconStyle}>
-                            <FaBed
-                              style={{ color: "#334155", marginTop: "3px" }}
-                            />
-                            {item?.bedrooms} Rooms
-                          </Box>
-                          <Box sx={iconStyle}>
-                            <FaBath
-                              style={{ color: "#334155", marginTop: "3px" }}
-                            />
-                            {item?.bathrooms} Baths
-                          </Box>
-                        </Box>
-                      </Box>
-                    </Box>
-                  </AppCard>
-                </Grid>
-              ))}
-            </Grid>
-          </Box>
         </Box>
       </AppContainer>
     </Box>
