@@ -266,7 +266,7 @@ const Home = () => {
                     key={rooms}
                     onClick={() => {
                       setRoomsAnchor(null);
-                      navigateToSearch({ minBedrooms: String(rooms) });
+                      navigateToSearch({ minTotalRooms: String(rooms) });
                     }}
                   >
                     {rooms}+ rooms

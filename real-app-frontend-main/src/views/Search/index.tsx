@@ -75,7 +75,7 @@ const SearchPage = () => {
     location: "",
     minRent: "",
     maxRent: "",
-    minBedrooms: "",
+    minTotalRooms: "",
     solar: false,
     borehole: false,
     security: false,
@@ -106,6 +106,7 @@ const SearchPage = () => {
       "location",
       "minRent",
       "maxRent",
+      "minTotalRooms",
       "minBedrooms",
       "solar",
       "borehole",
@@ -119,6 +120,17 @@ const SearchPage = () => {
     ];
 
     return supportedParams.some((param) => urlParams.has(param));
+  };
+
+  const normalizeRoomParams = (urlParams: URLSearchParams) => {
+    const minTotalRooms = urlParams.get("minTotalRooms");
+    const minBedrooms = urlParams.get("minBedrooms");
+
+    if (!minTotalRooms && minBedrooms) {
+      urlParams.set("minTotalRooms", minBedrooms);
+    }
+
+    urlParams.delete("minBedrooms");
   };
 
   const handleSearch = (event: any) => {
@@ -138,6 +150,7 @@ const SearchPage = () => {
     const locationFromUrl = urlParams.get("location");
     const minRentFromUrl = urlParams.get("minRent");
     const maxRentFromUrl = urlParams.get("maxRent");
+    const minTotalRoomsFromUrl = urlParams.get("minTotalRooms");
     const minBedroomsFromUrl = urlParams.get("minBedrooms");
     const solarFromUrl = urlParams.get("solar");
     const boreholeFromUrl = urlParams.get("borehole");
@@ -151,7 +164,7 @@ const SearchPage = () => {
         location: locationFromUrl || "",
         minRent: minRentFromUrl || "",
         maxRent: maxRentFromUrl || "",
-        minBedrooms: minBedroomsFromUrl || "",
+        minTotalRooms: minTotalRoomsFromUrl || minBedroomsFromUrl || "",
         solar: solarFromUrl === "true",
         borehole: boreholeFromUrl === "true",
         security: securityFromUrl === "true",
@@ -170,6 +183,7 @@ const SearchPage = () => {
       if (typeFromUrl && normalizedType !== typeFromUrl) {
         urlParams.set("type", normalizedType);
       }
+      normalizeRoomParams(urlParams);
       const searchQuery = urlParams.toString();
       const res = await fetch(`${apiBase}/listings/get?${searchQuery}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
@@ -199,7 +213,7 @@ const SearchPage = () => {
     urlParams.set("location", sideBarData.location);
     urlParams.set("minRent", sideBarData.minRent);
     urlParams.set("maxRent", sideBarData.maxRent);
-    urlParams.set("minBedrooms", sideBarData.minBedrooms);
+    urlParams.set("minTotalRooms", sideBarData.minTotalRooms);
     urlParams.set("solar", sideBarData.solar);
     urlParams.set("borehole", sideBarData.borehole);
     urlParams.set("security", sideBarData.security);
@@ -210,6 +224,7 @@ const SearchPage = () => {
 
   const onShowMoreClick = async () => {
     const urlParams = new URLSearchParams(window.location.search);
+    normalizeRoomParams(urlParams);
     urlParams.set("page", (page + 1).toString());
     const searchQuery = urlParams.toString();
     const res = await fetch(`${apiBase}/listings/get?${searchQuery}`, {
@@ -301,11 +316,11 @@ const SearchPage = () => {
               </Box>
 
               <Box sx={{ marginTop: "10px" }}>
-                <SubHeading sx={{ marginBottom: "5px" }}>Min Bedrooms</SubHeading>
+                <SubHeading sx={{ marginBottom: "5px" }}>Min Rooms</SubHeading>
                 <AppInput
-                  value={sideBarData.minBedrooms}
+                  value={sideBarData.minTotalRooms}
                   onChange={(e) =>
-                    setSideBarData({ ...sideBarData, minBedrooms: e.target.value })
+                    setSideBarData({ ...sideBarData, minTotalRooms: e.target.value })
                   }
                   placeholder="e.g., 2"
                   type="number"
