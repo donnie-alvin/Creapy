@@ -291,6 +291,41 @@ exports.updateListing = catchAsync(async (req, res, next) => {
   });
 });
 
+exports.transitionListingToPendingPayment = catchAsync(async (req, res, next) => {
+  const listing = await Listing.findById(req.params.id);
+
+  if (!listing) {
+    return next(new AppError("No listing found with that ID", 404));
+  }
+
+  if (listing.user.toString() !== req.user.id) {
+    return next(new AppError("You do not own this listing", 403));
+  }
+
+  if (listing.status !== "active") {
+    return next(
+      new AppError("Only active listings can be transitioned to pending payment.", 400)
+    );
+  }
+
+  if (!(listing.paymentDeadline instanceof Date) || listing.paymentDeadline <= new Date()) {
+    return next(
+      new AppError(
+        "Only listings still within the payment window can be transitioned to pending payment.",
+        400
+      )
+    );
+  }
+
+  listing.status = "pending_payment";
+  await listing.save();
+
+  res.status(200).json({
+    status: "success",
+    data: listing,
+  });
+});
+
 exports.getListings = catchAsync(async (req, res, next) => {
   // 0) Apply listing lifecycle updates
   await applyListingLifecycle();

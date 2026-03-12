@@ -19,7 +19,7 @@ exports.initiateListingFee = catchAsync(async (req, res, next) => {
   }
 
   // Check status
-  if (!["pending_payment", "inactive"].includes(listing.status)) {
+  if (!["pending_payment", "inactive", "active"].includes(listing.status)) {
     return next(new AppError("Listing is not awaiting payment", 400));
   }
 
@@ -40,6 +40,12 @@ exports.initiateListingFee = catchAsync(async (req, res, next) => {
     method: "paynow",
     amount: parseFloat(process.env.LISTING_FEE_AMOUNT) || 0,
   });
+
+  await Listing.findByIdAndUpdate(
+    listing._id,
+    { status: "pending_payment" },
+    { new: false }
+  );
 
   res.status(201).json({
     status: "success",

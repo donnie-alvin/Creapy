@@ -103,6 +103,11 @@ test("listing routes keep browse/view public and publish landlord-only", async (
   const updateLayer = routeLayers.find(
     (layer) => layer.route.path === "/:id" && layer.route.methods.put
   );
+  const pendingPaymentTransitionLayer = routeLayers.find(
+    (layer) =>
+      layer.route.path === "/:id/transition-to-pending-payment" &&
+      layer.route.methods.post
+  );
   const reviveLayer = routeLayers.find(
     (layer) => layer.route.path === "/:id/revive" && layer.route.methods.put
   );
@@ -115,6 +120,7 @@ test("listing routes keep browse/view public and publish landlord-only", async (
   assert.ok(publicLegacyLayer);
   assert.ok(createLayer);
   assert.ok(updateLayer);
+  assert.ok(pendingPaymentTransitionLayer);
   assert.equal(reviveLayer, undefined);
   assert.ok(protectIndex > -1);
 
@@ -147,8 +153,10 @@ test("tenant saved searches no longer require premium middleware", async () => {
 test("landlord can initiate listing fee payment", async () => {
   const originalCreate = Payment.create;
   const originalFindById = Listing.findById;
+  const originalFindByIdAndUpdate = Listing.findByIdAndUpdate;
 
   let capturedPayment = null;
+  let updateArgs = null;
 
   Payment.create = async (data) => {
     capturedPayment = data;
@@ -161,6 +169,11 @@ test("landlord can initiate listing fee payment", async () => {
     status: "pending_payment",
   });
 
+  Listing.findByIdAndUpdate = async (...args) => {
+    updateArgs = args;
+    return null;
+  };
+
   const result = await invokeController(paymentController.initiateListingFee, {
     user: {
       _id: "u_1",
@@ -171,19 +184,27 @@ test("landlord can initiate listing fee payment", async () => {
 
   Payment.create = originalCreate;
   Listing.findById = originalFindById;
+  Listing.findByIdAndUpdate = originalFindByIdAndUpdate;
 
   assert.equal(result.statusCode, 201);
   assert.equal(result.body.status, "success");
   assert.ok(result.body.data.transactionRef);
   assert.equal(capturedPayment.type, "listing_fee");
   assert.equal(capturedPayment.status, "pending");
+  assert.deepEqual(updateArgs, [
+    "listing_1",
+    { status: "pending_payment" },
+    { new: false },
+  ]);
 });
 
 test("landlord can initiate listing fee payment for inactive listing revival", async () => {
   const originalCreate = Payment.create;
   const originalFindById = Listing.findById;
+  const originalFindByIdAndUpdate = Listing.findByIdAndUpdate;
 
   let capturedPayment = null;
+  let updateArgs = null;
 
   Payment.create = async (data) => {
     capturedPayment = data;
@@ -196,6 +217,11 @@ test("landlord can initiate listing fee payment for inactive listing revival", a
     status: "inactive",
   });
 
+  Listing.findByIdAndUpdate = async (...args) => {
+    updateArgs = args;
+    return null;
+  };
+
   const result = await invokeController(paymentController.initiateListingFee, {
     user: {
       _id: "u_1",
@@ -206,14 +232,30 @@ test("landlord can initiate listing fee payment for inactive listing revival", a
 
   Payment.create = originalCreate;
   Listing.findById = originalFindById;
+  Listing.findByIdAndUpdate = originalFindByIdAndUpdate;
 
   assert.equal(result.statusCode, 201);
   assert.equal(result.body.status, "success");
   assert.equal(capturedPayment.type, "listing_fee");
+  assert.deepEqual(updateArgs, [
+    "listing_inactive",
+    { status: "pending_payment" },
+    { new: false },
+  ]);
 });
 
-test("listing fee payment rejects already active listing", async () => {
+test("landlord can initiate listing fee payment for active listing", async () => {
+  const originalCreate = Payment.create;
   const originalFindById = Listing.findById;
+  const originalFindByIdAndUpdate = Listing.findByIdAndUpdate;
+
+  let capturedPayment = null;
+  let updateArgs = null;
+
+  Payment.create = async (data) => {
+    capturedPayment = data;
+    return { _id: "pay_active", ...data, status: "pending" };
+  };
 
   Listing.findById = async () => ({
     _id: "listing_active",
@@ -221,6 +263,11 @@ test("listing fee payment rejects already active listing", async () => {
     status: "active",
     paymentDeadline: null,
   });
+
+  Listing.findByIdAndUpdate = async (...args) => {
+    updateArgs = args;
+    return null;
+  };
 
   const result = await invokeController(paymentController.initiateListingFee, {
     user: {
@@ -230,10 +277,75 @@ test("listing fee payment rejects already active listing", async () => {
     body: { listingId: "listing_active", phone: "256700000000" },
   });
 
+  Payment.create = originalCreate;
+  Listing.findById = originalFindById;
+  Listing.findByIdAndUpdate = originalFindByIdAndUpdate;
+
+  assert.equal(result.statusCode, 201);
+  assert.equal(result.body.status, "success");
+  assert.equal(capturedPayment.type, "listing_fee");
+  assert.deepEqual(updateArgs, [
+    "listing_active",
+    { status: "pending_payment" },
+    { new: false },
+  ]);
+});
+
+test("landlord can transition active listing to pending payment", async () => {
+  const originalFindById = Listing.findById;
+
+  const listing = {
+    _id: "listing_active",
+    user: { toString: () => "u_1" },
+    status: "active",
+    paymentDeadline: new Date(Date.now() + 60 * 60 * 1000),
+    async save() {
+      return this;
+    },
+  };
+
+  Listing.findById = async () => listing;
+
+  const result = await invokeController(
+    listingController.transitionListingToPendingPayment,
+    {
+      params: { id: "listing_active" },
+      user: { id: "u_1" },
+    }
+  );
+
+  Listing.findById = originalFindById;
+
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.body.status, "success");
+  assert.equal(result.body.data.status, "pending_payment");
+});
+
+test("listing transition rejects non-active listings", async () => {
+  const originalFindById = Listing.findById;
+
+  Listing.findById = async () => ({
+    _id: "listing_pending",
+    user: { toString: () => "u_1" },
+    status: "pending_payment",
+    paymentDeadline: new Date(Date.now() + 60 * 60 * 1000),
+  });
+
+  const result = await invokeController(
+    listingController.transitionListingToPendingPayment,
+    {
+      params: { id: "listing_pending" },
+      user: { id: "u_1" },
+    }
+  );
+
   Listing.findById = originalFindById;
 
   assert.equal(result.error.statusCode, 400);
-  assert.equal(result.error.message, "Listing is not awaiting payment");
+  assert.equal(
+    result.error.message,
+    "Only active listings can be transitioned to pending payment."
+  );
 });
 
 test("tenant can initiate premium subscription payment", async () => {

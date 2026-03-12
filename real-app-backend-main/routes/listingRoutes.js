@@ -37,6 +37,12 @@ router.get(
   listingController.getUsersListings
 );
 
+router.post(
+  "/:id/transition-to-pending-payment",
+  authController.requireRole("landlord"),
+  listingController.transitionListingToPendingPayment
+);
+
 router.delete(
   "/:id",
   authController.requireRole("landlord"),
