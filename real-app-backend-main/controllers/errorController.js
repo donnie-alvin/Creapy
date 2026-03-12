@@ -7,7 +7,8 @@ const handleCastErrorDB = (err) => {
 };
 
 const handleDuplicateFieldsDB = (err) => {
-  const message = `Duplicate field value: \"${err.keyValue.name}"\. Please use another value!`;
+  const field = Object.keys(err.keyValue)[0];
+  const message = `Duplicate field value: \"${field}"\. Please use another value!`;
   return new AppError(message, 400);
 };
 
@@ -57,15 +58,15 @@ module.exports = (err, req, res, next) => {
   err.statusCode = err.statusCode || 500;
   err.status = err.status || "error";
 
+  if (err.code === 11000) err = handleDuplicateFieldsDB(err);
+  if (err.name === "CastError") err = handleCastErrorDB(err);
+  if (err.name === "ValidationError") err = handleValidationErrorDB(err);
+  if (err.name === "JsonWebTokenError") err = handleJWTError();
+  if (err.name === "TokenExpiredError") err = handleJWTExpiredError();
+
   if (process.env.NODE_ENV === "development") {
     sendErrorDev(err, res);
-  } else if (process.env.NODE_ENV === "production") {
-    if (err.name === "CastError") err = handleCastErrorDB(err);
-    if (err.code === 11000) err = handleDuplicateFieldsDB(err);
-    if (err.name === "ValidationError") err = handleValidationErrorDB(err);
-    if (err.name === "JsonWebTokenError") err = handleJWTError();
-    if (err.name === "TokenExpiredError") err = handleJWTExpiredError();
-
+  } else {
     sendErrorProd(err, res);
   }
 };
