@@ -10,8 +10,6 @@ import { Swiper, SwiperSlide } from "swiper/react";
 import { Autoplay, Pagination } from "swiper/modules";
 import "swiper/css/free-mode";
 import "swiper/css";
-// React Icons
-import { PiShootingStarThin } from "react-icons/pi";
 import {
   useGetHomeGroupedByLocationQuery,
   useGetHomeHighlightedQuery,
@@ -102,9 +100,9 @@ const Home = () => {
     navigate(`/search?${urlParams.toString()}`);
   };
 
-  const heroDropdownButtonSx = {
-    background: "rgba(255,255,255,0.15)",
-    color: "#fff",
+  const filterButtonSx = {
+    background: "#f1f5f9",
+    color: "#334155",
     borderRadius: "999px",
     padding: "6px 14px",
     fontSize: "13px",
@@ -151,82 +149,32 @@ const Home = () => {
           </Box>
         </AppContainer>
       )}
-      <AppContainer>
-        <Box
-          sx={{
-            position: "relative",
-            borderRadius: "24px",
-            overflow: "hidden",
-            minHeight: { xs: "480px", md: "520px" },
-            backgroundImage:
-              "url(https://images.unsplash.com/photo-1505691723518-36a5ac3be353?q=80&w=2070&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D)",
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-            boxShadow: "0px 18px 40px rgba(15, 23, 42, 0.15)",
-          }}
-        >
-          <Box
-            sx={{
-              position: "absolute",
-              inset: 0,
-              background:
-                "linear-gradient(110deg, rgba(15, 23, 42, 0.7) 0%, rgba(15, 23, 42, 0.25) 60%, rgba(15, 23, 42, 0.15) 100%)",
-            }}
-          />
-          <Box
-            sx={{
-              position: "relative",
-              padding: { xs: 3, md: 6 },
-              maxWidth: { md: "60%" },
-              color: "#fff",
-            }}
-          >
+      <AppContainer sx={{ marginTop: { xs: 2, md: 3 } }}>
+        <AppCard sx={{ p: { xs: 2, md: 3 } }}>
+          <Box component="form" onSubmit={handleHeroSubmit}>
             <Box
               sx={{
-                display: "inline-flex",
+                display: "flex",
+                flexDirection: { xs: "column", sm: "row" },
+                gap: 2,
                 alignItems: "center",
-                gap: 1,
-                background: "rgba(255,255,255,0.15)",
-                borderRadius: "999px",
-                padding: "6px 12px",
-                fontSize: "12px",
-                fontWeight: 600,
               }}
             >
-              <PiShootingStarThin size={16} /> Premium listings
-            </Box>
-            <Heading sx={{ fontSize: { xs: "32px", md: "44px" }, marginTop: 2 }}>
-              Build Your Future, One Property at a Time.
-            </Heading>
-            <SubHeading sx={{ marginTop: 1, color: "rgba(255,255,255,0.85)" }}>
-              Discover curated homes, flexible rentals, and exclusive offers in the best
-              neighborhoods.
-            </SubHeading>
-            <Box component="form" onSubmit={handleHeroSubmit} sx={{ marginTop: 3 }}>
-              <AppCard
-                sx={{
-                  p: 2,
-                  display: "flex",
-                  flexDirection: { xs: "column", sm: "row" },
-                  gap: 2,
-                  alignItems: "center",
-                }}
-              >
-                <AppInput
-                  placeholder="Search by location, address, or keyword"
-                  value={heroSearch}
-                  onChange={(e) => setHeroSearch(e.target.value)}
-                />
-                <AppButton type="submit">Search Properties</AppButton>
-              </AppCard>
+              <AppInput
+                placeholder="Search by location, address, or keyword"
+                value={heroSearch}
+                onChange={(e) => setHeroSearch(e.target.value)}
+              />
+              <AppButton type="submit">Search Properties</AppButton>
             </Box>
             <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, marginTop: 2 }}>
               <Box
                 component="button"
+                type="button"
                 onClick={(e: React.MouseEvent<HTMLElement>) =>
                   setLocationAnchor(e.currentTarget)
                 }
-                sx={heroDropdownButtonSx}
+                sx={filterButtonSx}
               >
                 📍 Location ▾
               </Box>
@@ -249,10 +197,11 @@ const Home = () => {
               </Menu>
               <Box
                 component="button"
+                type="button"
                 onClick={(e: React.MouseEvent<HTMLElement>) =>
                   setRoomsAnchor(e.currentTarget)
                 }
-                sx={heroDropdownButtonSx}
+                sx={filterButtonSx}
               >
                 🏠 Rooms ▾
               </Box>
@@ -275,10 +224,11 @@ const Home = () => {
               </Menu>
               <Box
                 component="button"
+                type="button"
                 onClick={(e: React.MouseEvent<HTMLElement>) =>
                   setPriceAnchor(e.currentTarget)
                 }
-                sx={heroDropdownButtonSx}
+                sx={filterButtonSx}
               >
                 💰 Price ▾
               </Box>
@@ -322,10 +272,11 @@ const Home = () => {
               </Menu>
               <Box
                 component="button"
+                type="button"
                 onClick={(e: React.MouseEvent<HTMLElement>) =>
                   setAmenitiesAnchor(e.currentTarget)
                 }
-                sx={heroDropdownButtonSx}
+                sx={filterButtonSx}
               >
                 ✨ Amenities ▾
               </Box>
@@ -354,11 +305,12 @@ const Home = () => {
               </Menu>
               <Box
                 component="button"
+                type="button"
                 onClick={() => navigate("/search")}
                 sx={{
                   background: "none",
                   border: "none",
-                  color: "#93c5fd",
+                  color: "#1F4D3A",
                   cursor: "pointer",
                   fontSize: "13px",
                   fontWeight: 500,
@@ -368,7 +320,7 @@ const Home = () => {
               </Box>
             </Box>
           </Box>
-        </Box>
+        </AppCard>
       </AppContainer>
 
       {!highlightedLoading && highlightedHeroListings.length > 0 ? (
