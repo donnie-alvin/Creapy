@@ -9,6 +9,9 @@ const API_BASE = (
   process.env.API_BASE ||
   `http://localhost:${process.env.PORT || 5000}`
 ).replace(/\/+$/, '');
+const SEED_API_KEY = process.env.SEED_API_KEY || '';
+const TARGET_LISTING_COUNT = 100;
+const DEMO_PHONE = '+263771234567';
 
 const SINGLE_ACTIVE_LISTING_MESSAGE =
   'You already have an active listing. You can only have one listing at a time.';
@@ -121,11 +124,65 @@ async function request(method, path, body, token) {
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }
+  if (SEED_API_KEY) {
+    headers['x-seed-api-key'] = SEED_API_KEY;
+  }
+
+  let payload;
+  if (body != null) {
+    payload = JSON.stringify(body);
+  }
 
   const res = await fetch(`${API_BASE}${path}`, {
     method,
     headers,
-    body: body != null ? JSON.stringify(body) : undefined,
+    body: payload,
+  });
+
+  const raw = await res.text();
+  let data = null;
+  if (raw) {
+    try {
+      data = JSON.parse(raw);
+    } catch (error) {
+      data = { raw };
+    }
+  }
+
+  if (!res.ok) {
+    const error = new Error(
+      `${method} ${path} failed (${res.status}): ${JSON.stringify(data)}`
+    );
+    error.status = res.status;
+    error.payload = data;
+    throw error;
+  }
+
+  return data;
+}
+
+async function requestForm(method, path, body, token) {
+  const headers = {
+    'Content-Type': 'application/x-www-form-urlencoded',
+  };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  if (SEED_API_KEY) {
+    headers['x-seed-api-key'] = SEED_API_KEY;
+  }
+
+  const params = new URLSearchParams();
+  Object.entries(body || {}).forEach(([key, value]) => {
+    if (value != null) {
+      params.append(key, String(value));
+    }
+  });
+
+  const res = await fetch(`${API_BASE}${path}`, {
+    method,
+    headers,
+    body: params.toString(),
   });
 
   const raw = await res.text();
@@ -151,12 +208,7 @@ async function request(method, path, body, token) {
 }
 
 function buildLandlordSeedUsers() {
-  const listingCount = LOCATIONS.reduce(
-    (sum, config) => sum + config.descriptors.length,
-    0
-  );
-
-  return Array.from({ length: listingCount }, (_, index) => ({
+  return Array.from({ length: TARGET_LISTING_COUNT }, (_, index) => ({
     username: index === 0 ? 'demo_landlord' : `demo_landlord_${index + 1}`,
     email: index === 0 ? 'landlord@demo.com' : `landlord${index + 1}@demo.com`,
     password: 'demo1234',
@@ -191,44 +243,111 @@ async function ensureUser(user) {
 }
 
 function buildListings() {
-  return LOCATIONS.flatMap((config, locationIndex) =>
-    config.descriptors.map((descriptor, step) => {
-      const index = locationIndex * config.descriptors.length + step;
-      const monthlyRent = Math.round(
-        config.rentMin + (config.rentMax - config.rentMin) * (step / 5)
-      );
+  const locationCounts = Array.from({ length: LOCATIONS.length }, () => 0);
 
-      return {
-        name: `${config.location} ${descriptor}`,
-        address: `${10 + index * 7} ${descriptor} Road, ${config.location}`,
-        description: `${config.location} ${descriptor} offers a well-kept rental with practical amenities and convenient access to daily essentials.`,
-        monthlyRent,
-        bedrooms: (index % 5) + 1,
-        bathrooms: (index % 3) + 1,
-        totalRooms: ((index % 5) + 1) + ((index % 3) + 1) + 1,
-        furnished: index % 2 === 0,
-        amenities: {
-          solar: index % 2 === 0,
-          borehole: index % 3 !== 1,
-          security: index % 4 !== 0,
-          parking: index % 3 !== 2,
-          internet: index % 5 < 3,
-        },
-        imageUrls: [IMAGES[index % IMAGES.length], IMAGES[(index + 1) % IMAGES.length]],
-        phoneNumber: '+263771234567',
-        type: 'rent',
-        offer: false,
-        location: config.location,
-      };
-    })
-  );
+  return Array.from({ length: TARGET_LISTING_COUNT }, (_, index) => {
+    const locationIndex = index % LOCATIONS.length;
+    const config = LOCATIONS[locationIndex];
+    const localIndex = locationCounts[locationIndex];
+    locationCounts[locationIndex] += 1;
+
+    const descriptor = config.descriptors[localIndex % config.descriptors.length];
+    const descriptorCycle = Math.floor(localIndex / config.descriptors.length);
+    const descriptorLabel =
+      descriptorCycle === 0 ? descriptor : `${descriptor} ${descriptorCycle + 1}`;
+    const rentProgress =
+      localIndex === 0 ? 0 : (localIndex % 10) / 9;
+    const monthlyRent = Math.round(
+      config.rentMin + (config.rentMax - config.rentMin) * rentProgress
+    );
+    const bedrooms = (index % 5) + 1;
+    const bathrooms = (index % 3) + 1;
+
+    return {
+      name: `${config.location} ${descriptorLabel}`,
+      address: `${10 + index * 7} ${descriptorLabel} Road, ${config.location}`,
+      description: `${config.location} ${descriptorLabel} offers a well-kept rental with practical amenities and convenient access to daily essentials.`,
+      monthlyRent,
+      bedrooms,
+      bathrooms,
+      totalRooms: bedrooms + bathrooms + 1,
+      furnished: index % 2 === 0,
+      amenities: {
+        solar: index % 2 === 0,
+        borehole: index % 3 !== 1,
+        security: index % 4 !== 0,
+        parking: index % 3 !== 2,
+        internet: index % 5 < 3,
+      },
+      imageUrls: [IMAGES[index % IMAGES.length], IMAGES[(index + 1) % IMAGES.length]],
+      phoneNumber: DEMO_PHONE,
+      type: 'rent',
+      offer: false,
+      location: config.location,
+    };
+  });
 }
 
-async function ensureListing(listing, token, index, total) {
+async function getUsersListings(userId, token) {
+  const response = await request('GET', `/api/v1/listings/user/${userId}`, null, token);
+  return response?.data || [];
+}
+
+async function getListingById(listingId, token) {
+  const response = await request(
+    'GET',
+    `/api/v1/listings/listing/${listingId}`,
+    null,
+    token
+  );
+  return response?.data || null;
+}
+
+async function ensurePermanentListing(listing, token) {
+  if (!listing?._id) {
+    return false;
+  }
+
+  if (listing.paymentDeadline == null && listing.status === 'active') {
+    return false;
+  }
+
+  const payment = await request(
+    'POST',
+    '/api/v1/payments/listing-fee',
+    { listingId: listing._id, phone: listing.phoneNumber || DEMO_PHONE },
+    token
+  );
+  const transactionRef = payment?.data?.transactionRef;
+  if (!transactionRef) {
+    throw new Error(`No transactionRef returned for listing ${listing._id}`);
+  }
+
+  await requestForm(
+    'POST',
+    '/webhooks/payment',
+    { reference: transactionRef, status: 'paid', hash: 'ignored' },
+    null
+  );
+
+  const updatedListing = await getListingById(listing._id, token);
+  if (updatedListing?.paymentDeadline != null || updatedListing?.status !== 'active') {
+    throw new Error(
+      `Listing ${listing._id} was not finalized as permanent. Check PAYMENT_PROVIDER/webhook configuration.`
+    );
+  }
+
+  return true;
+}
+
+async function ensureListing(listing, token, userId, index, total) {
   try {
-    await request('POST', '/api/v1/listings', listing, token);
+    const response = await request('POST', '/api/v1/listings', listing, token);
     process.stdout.write(`\r  Creating listings... ${index}/${total}`);
-    return true;
+    return {
+      created: true,
+      listing: response?.data?.listing || null,
+    };
   } catch (error) {
     const message =
       error?.payload?.message ||
@@ -241,7 +360,15 @@ async function ensureListing(listing, token, index, total) {
       message.includes(SINGLE_ACTIVE_LISTING_MESSAGE)
     ) {
       process.stdout.write(`\r  Creating listings... ${index}/${total}`);
-      return false;
+      const existingListings = await getUsersListings(userId, token);
+      const existingListing =
+        existingListings.find((item) => item.status !== 'inactive') ||
+        existingListings[0] ||
+        null;
+      return {
+        created: false,
+        listing: existingListing,
+      };
     }
 
     throw error;
@@ -257,12 +384,15 @@ async function seed() {
   const listings = buildListings();
 
   let createdUsers = 0;
-  const landlordTokens = [];
+  const landlords = [];
 
   for (const landlord of landlordSeeds) {
     const result = await ensureUser(landlord);
     if (result.created) createdUsers += 1;
-    landlordTokens.push(result.token);
+    landlords.push({
+      token: result.token,
+      user: result.user,
+    });
   }
 
   const premiumTenant = await ensureUser({
@@ -284,25 +414,42 @@ async function seed() {
   console.log(`✓ ${createdUsers} demo users created or recovered`);
 
   let createdListings = 0;
+  let permanentListings = 0;
   for (let index = 0; index < listings.length; index += 1) {
-    const created = await ensureListing(
+    const outcome = await ensureListing(
       listings[index],
-      landlordTokens[index],
+      landlords[index].token,
+      landlords[index].user?._id,
       index + 1,
       listings.length
     );
-    if (created) createdListings += 1;
+    if (outcome.created) createdListings += 1;
+    if (outcome.listing) {
+      const madePermanent = await ensurePermanentListing(
+        outcome.listing,
+        landlords[index].token
+      );
+      if (madePermanent) permanentListings += 1;
+    }
   }
 
   console.log(`\n✓ ${createdListings} demo listings created`);
+  console.log(`✓ ${permanentListings} listings finalized with unlimited lifetime`);
   console.log('\nDemo credentials:');
   console.log('  Landlord:        landlord@demo.com / demo1234');
-  console.log('  Extra landlords: landlord2-36@demo.com / demo1234');
+  console.log('  Extra landlords: landlord2-100@demo.com / demo1234');
   console.log('  Premium tenant:  premium@demo.com / demo1234');
   console.log('  Free tenant:     tenant@demo.com / demo1234');
   console.log(
-    '\nNote: premium@demo.com is created as a tenant account only. Premium activation still requires the payment/webhook flow.\n'
+    '\nNote: premium@demo.com is created as a tenant account only. Premium activation still requires the payment/webhook flow.'
   );
+  if (SEED_API_KEY) {
+    console.log('Seed rate-limit bypass header enabled via SEED_API_KEY.\n');
+  } else {
+    console.log(
+      'Configure SEED_API_KEY on both the backend and this script environment if you need to bypass API rate limits while seeding large datasets.\n'
+    );
+  }
 }
 
 seed().catch((error) => {
