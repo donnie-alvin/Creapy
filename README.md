@@ -25,3 +25,12 @@ sequenceDiagram
     Dev->>Render: Update FRONTEND_URL + PAYNOW_RETURN_URL env vars
     Render-->>Amplify: CORS allows *.amplifyapp.com origin
 ```
+
+## E2E Testing
+
+Creapy includes a full automated E2E test suite and manual QA checklists.
+
+- [docs/user-manual.md](docs/user-manual.md) - step-by-step user manual for landlords and tenants
+- [docs/testing-landlord.md](docs/testing-landlord.md) - manual QA checklist for landlord flows
+- [docs/testing-tenant.md](docs/testing-tenant.md) - manual QA checklist for tenant flows
+- [real-app-backend-main/README.md](real-app-backend-main/README.md) - automated E2E test run command (`PAYMENT_PROVIDER=mock npm run test:e2e`)

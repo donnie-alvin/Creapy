@@ -25,7 +25,7 @@ Amplify backend hosting expects the build output in the following structure:
 
 | Variable | Description |
 |---|---|
-| `NODE_ENV` | `development` or `production` runtime mode |
+| `NODE_ENV` | `development` or `production` runtime mode. **If not set to `development`, the backend defaults to production error handling - always set this explicitly in Amplify environment variables.** |
 | `PORT` | Port the API server listens on |
 | `MONGO_URI` | MongoDB connection string |
 | `JWT_SECRET` | Secret used to sign JWTs |
@@ -63,3 +63,12 @@ Amplify backend hosting expects the build output in the following structure:
 | `REACT_APP_LISTING_FEE_AMOUNT` | `5` |
 | `REACT_APP_TENANT_PREMIUM_AMOUNT` | `10` |
 | `DISABLE_ESLINT_PLUGIN` | `true` |
+
+## GitHub Actions CI
+
+- Trigger: push to `main` branch
+- Workflow file: `.github/workflows/e2e.yml`
+- Working directory: `real-app-backend-main/`
+- Steps: `npm ci`, then `npm run test:e2e`
+- Required GitHub Actions secret: `E2E_API_BASE_URL` - set this to the deployed Amplify backend URL in the repository's **Settings -> Secrets and variables -> Actions**
+- `PAYMENT_PROVIDER` is hardcoded to `mock` in the workflow, so no Paynow credentials are needed in CI
