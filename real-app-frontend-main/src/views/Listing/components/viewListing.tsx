@@ -95,6 +95,18 @@ const ViewListing = () => {
                     <FaLocationDot style={{ color: "#2B6A50" }} />
                     {data?.data?.address}
                   </Box>
+                  {data?.data?.location?.province ? (
+                    <Box
+                      sx={{
+                        marginTop: "8px",
+                        color: "text.secondary",
+                        fontSize: "14px",
+                        fontWeight: 500,
+                      }}
+                    >
+                      📍 {data.data.location.province}, {data.data.location.country}
+                    </Box>
+                  ) : null}
                   <Box
                     sx={{
                       display: "flex",

@@ -106,6 +106,7 @@ const SearchPage = () => {
     const supportedParams = [
       "searchTerm",
       "location",
+      "province",
       "minRent",
       "maxRent",
       "minTotalRooms",
@@ -152,6 +153,7 @@ const SearchPage = () => {
     const studentAccommodationFromUrl = urlParams.get("studentAccommodation");
     const sortFromUrl = urlParams.get("sort");
     const locationFromUrl = urlParams.get("location");
+    const provinceFromUrl = urlParams.get("province");
     const minRentFromUrl = urlParams.get("minRent");
     const maxRentFromUrl = urlParams.get("maxRent");
     const minTotalRoomsFromUrl = urlParams.get("minTotalRooms");
@@ -165,7 +167,7 @@ const SearchPage = () => {
     if (hasAnySupportedFilterParam(urlParams)) {
       setSideBarData({
         searchTerm: searchTermFromUrl || "",
-        location: locationFromUrl || "",
+        location: provinceFromUrl || locationFromUrl || "",
         minRent: minRentFromUrl || "",
         maxRent: maxRentFromUrl || "",
         minTotalRooms: minTotalRoomsFromUrl || minBedroomsFromUrl || "",
@@ -216,7 +218,7 @@ const SearchPage = () => {
     urlParams.set("offer", sideBarData.offer);
     urlParams.set("studentAccommodation", sideBarData.studentAccommodation);
     urlParams.set("sort", sideBarData.sort);
-    urlParams.set("location", sideBarData.location);
+    urlParams.set("province", sideBarData.location);
     urlParams.set("minRent", sideBarData.minRent);
     urlParams.set("maxRent", sideBarData.maxRent);
     urlParams.set("minTotalRooms", sideBarData.minTotalRooms);

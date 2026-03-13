@@ -45,7 +45,12 @@ interface listingForm {
   phoneNumber: string;
   description: string;
   address: string;
-  location: string;
+  location: {
+    province: string;
+    city: string;
+    addressLine: string;
+    country: string;
+  };
   regularPrice: number;
   discountedPrice: number;
   bathrooms: number;
@@ -76,7 +81,12 @@ const CreateListing = () => {
     phoneNumber: "263",
     description: "",
     address: "",
-    location: "",
+    location: {
+      province: "",
+      city: "",
+      addressLine: "",
+      country: "Zimbabwe",
+    },
     regularPrice: 25000,
     discountedPrice: 0,
     bathrooms: 1,
@@ -227,7 +237,12 @@ const CreateListing = () => {
       // Backwards compat: server maps regularPrice -> monthlyRent
       regularPrice: Number(data.regularPrice),
       monthlyRent: Number(data.regularPrice),
-      location: data.location?.trim(),
+      location: {
+        addressLine: data.address?.trim() || "",
+        country: "Zimbabwe",
+        province: data.location.province?.trim(),
+        city: data.location.city?.trim() || "",
+      },
       amenities: data.amenities,
       discountedPrice: data.offer ? Number(data.discountedPrice || 0) : 0,
       bathrooms: Number(data.bathrooms),
@@ -320,11 +335,28 @@ const CreateListing = () => {
 
   useEffect(() => {
     if (id && listingSuccess) {
+      const rawLocation = listingData?.data?.location;
+      const normalizedLocation =
+        rawLocation && typeof rawLocation === "object"
+          ? {
+              province: rawLocation.province || "",
+              city: rawLocation.city || "",
+              addressLine:
+                rawLocation.addressLine || listingData?.data?.address || "",
+              country: rawLocation.country || "Zimbabwe",
+            }
+          : {
+              province: rawLocation || "",
+              city: "",
+              addressLine: listingData?.data?.address || "",
+              country: "Zimbabwe",
+            };
+
       setFormValues({
         name: listingData?.data?.name,
         description: listingData?.data?.description,
         address: listingData?.data?.address,
-        location: listingData?.data?.location || "",
+        location: normalizedLocation,
         regularPrice: listingData?.data?.regularPrice || listingData?.data?.monthlyRent,
         discountedPrice: listingData?.data?.discountedPrice,
         bathrooms: listingData?.data?.bathrooms,
@@ -495,8 +527,8 @@ const CreateListing = () => {
                             Province
                           </SubHeading>
                           <AppSelect
-                            name="location"
-                            value={values.location}
+                            name="location.province"
+                            value={values.location.province}
                             options={[
                               {
                                 label: "Select a province",
@@ -506,7 +538,7 @@ const CreateListing = () => {
                             ]}
                             displayEmpty
                             onChange={(e: any) =>
-                              setFieldValue("location", e.target.value)
+                              setFieldValue("location.province", e.target.value)
                             }
                             onBlur={handleBlur}
                             renderValue={(selected) => {
@@ -514,10 +546,16 @@ const CreateListing = () => {
                               return province || "Select a province";
                             }}
                             error={
-                              errors.location && touched.location ? true : false
+                              Boolean(
+                                touched.location &&
+                                  typeof errors.location === "object" &&
+                                  errors.location?.province
+                              )
                             }
                           />
-                          {errors.location && touched.location ? (
+                          {touched.location &&
+                          typeof errors.location === "object" &&
+                          errors.location?.province ? (
                             <Box
                               sx={{
                                 color: "#d32f2f",
@@ -526,9 +564,23 @@ const CreateListing = () => {
                                 marginLeft: "14px",
                               }}
                             >
-                              {errors.location as string}
+                              {errors.location.province as string}
                             </Box>
                           ) : null}
+                        </Box>
+                        <Box sx={{ width: "100%", marginTop: "10px" }}>
+                          <SubHeading sx={{ marginBottom: "5px" }}>
+                            City / Area
+                          </SubHeading>
+                          <PrimaryInput
+                            type="text"
+                            label=""
+                            name="location.city"
+                            placeholder="City / Area"
+                            value={values.location.city}
+                            onChange={handleChange}
+                            onBlur={handleBlur}
+                          />
                         </Box>
                         <Box
                           sx={{

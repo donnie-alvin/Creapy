@@ -4,6 +4,9 @@ require('dotenv').config({
   path: require('path').resolve(__dirname, '../.env'),
 });
 
+const mongoose = require('mongoose');
+const Listing = require('../models/listingModel');
+
 const API_BASE = (
   process.env.SEED_API_BASE ||
   process.env.API_BASE ||
@@ -30,6 +33,7 @@ const IMAGES = [
 const LOCATIONS = [
   {
     location: 'Borrowdale',
+    province: 'Harare',
     rentMin: 1200,
     rentMax: 3000,
     descriptors: [
@@ -43,6 +47,7 @@ const LOCATIONS = [
   },
   {
     location: 'Highlands',
+    province: 'Harare',
     rentMin: 800,
     rentMax: 1800,
     descriptors: [
@@ -56,6 +61,7 @@ const LOCATIONS = [
   },
   {
     location: 'Avondale',
+    province: 'Harare',
     rentMin: 500,
     rentMax: 1100,
     descriptors: [
@@ -69,6 +75,7 @@ const LOCATIONS = [
   },
   {
     location: 'Kuwadzana',
+    province: 'Harare',
     rentMin: 150,
     rentMax: 400,
     descriptors: [
@@ -82,6 +89,7 @@ const LOCATIONS = [
   },
   {
     location: 'Mbare',
+    province: 'Harare',
     rentMin: 100,
     rentMax: 250,
     descriptors: [
@@ -95,6 +103,7 @@ const LOCATIONS = [
   },
   {
     location: 'Chitungwiza',
+    province: 'Harare',
     rentMin: 120,
     rentMax: 350,
     descriptors: [
@@ -104,6 +113,48 @@ const LOCATIONS = [
       'Family Residence',
       'Practical House',
       'Fresh Start Home',
+    ],
+  },
+  {
+    location: 'Suburbs',
+    province: 'Bulawayo',
+    rentMin: 450,
+    rentMax: 1200,
+    descriptors: [
+      'City Villa',
+      'Executive Flat',
+      'Secure Townhouse',
+      'Classic Residence',
+      'Urban Home',
+      'Garden Apartment',
+    ],
+  },
+  {
+    location: 'Murambi',
+    province: 'Manicaland',
+    rentMin: 300,
+    rentMax: 850,
+    descriptors: [
+      'Hillside Cottage',
+      'Modern Duplex',
+      'Family Flat',
+      'Sunny Residence',
+      'Comfort Home',
+      'Quiet Retreat',
+    ],
+  },
+  {
+    location: 'Daylesford',
+    province: 'Midlands',
+    rentMin: 250,
+    rentMax: 700,
+    descriptors: [
+      'Neighbourhood House',
+      'Modern Cottage',
+      'Starter Duplex',
+      'Practical Family Home',
+      'Secure Residence',
+      'Bright Apartment',
     ],
   },
 ];
@@ -284,7 +335,12 @@ function buildListings() {
       type: 'rent',
       offer: false,
       studentAccommodation: index % 5 === 0,
-      location: config.location,
+      location: {
+        addressLine: `${10 + index * 7} ${descriptorLabel} Road, ${config.location}`,
+        country: 'Zimbabwe',
+        province: config.province,
+        city: config.location,
+      },
     };
   });
 }
@@ -376,6 +432,26 @@ async function ensureListing(listing, token, userId, index, total) {
   }
 }
 
+async function migrateLegacyLocations() {
+  const dbURI = process.env.MONGO_URI;
+  if (!dbURI) {
+    throw new Error('Missing MONGO_URI in server/.env. Add it before running the migration.');
+  }
+
+  await mongoose.connect(dbURI, {
+    serverSelectionTimeoutMS: 5000,
+  });
+
+  try {
+    const result = await Listing.backfillLegacyLocations();
+    console.log(
+      `Migrated ${result.modifiedCount || 0} legacy listing location records`
+    );
+  } finally {
+    await mongoose.disconnect();
+  }
+}
+
 async function seed() {
   requireFetch();
 
@@ -453,7 +529,11 @@ async function seed() {
   }
 }
 
-seed().catch((error) => {
+const run = process.argv.includes('--migrate-legacy-locations')
+  ? migrateLegacyLocations
+  : seed;
+
+run().catch((error) => {
   console.error('\nSeed failed:', error.message);
   process.exit(1);
 });

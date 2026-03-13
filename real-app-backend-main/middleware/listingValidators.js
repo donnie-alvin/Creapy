@@ -4,7 +4,6 @@ const createListingValidators = [
   body("name").notEmpty().withMessage("name is required"),
   body("description").notEmpty().withMessage("description is required"),
   body("address").notEmpty().withMessage("address is required"),
-  body("location").notEmpty().withMessage("location is required"),
   body("type")
     .optional()
     .equals("rent")

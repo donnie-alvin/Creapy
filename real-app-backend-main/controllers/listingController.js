@@ -16,6 +16,28 @@ const isDuplicateKeyError = (error) =>
   ((error.keyPattern && error.keyPattern.user) ||
     (error.keyValue && error.keyValue.user));
 
+const escapeRegex = (value) =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const addAndCondition = (filter, condition) => {
+  if (!filter.$and) {
+    filter.$and = [];
+  }
+  filter.$and.push(condition);
+};
+
+const getNormalizedProvinceValue = (location) => {
+  if (typeof location === "string") {
+    return location.trim();
+  }
+
+  if (location && typeof location === "object") {
+    return (location.province || "").trim();
+  }
+
+  return "";
+};
+
 const applyListingLifecycle = async () => {
   const now = new Date();
 
@@ -71,6 +93,26 @@ const normalizeListingPayload = (body) => {
     delete payload.parking;
   }
 
+  if (typeof payload.location === "string") {
+    payload.location = {
+      province: payload.location,
+      country: "Zimbabwe",
+      addressLine: payload.address || "",
+      city: "",
+    };
+  } else if (payload.location && typeof payload.location === "object") {
+    payload.location = {
+      addressLine: payload.location.addressLine || payload.address || "",
+      country: payload.location.country || "Zimbabwe",
+      province: payload.location.province || "",
+      city: payload.location.city || "",
+      coordinates: payload.location.coordinates || {
+        lat: null,
+        lng: null,
+      },
+    };
+  }
+
   // Do not persist discountedPrice if not needed; keep if present.
   return payload;
 };
@@ -79,8 +121,21 @@ const matchesSavedSearch = (search, listing) => {
   const c = search.criteria || {};
   const loc = (c.location || "").trim().toLowerCase();
   if (loc) {
-    const listingLoc = (listing.location || "").toLowerCase();
-    if (!listingLoc.includes(loc)) return false;
+    const listingLocs = [];
+    if (listing.location?.province) {
+      listingLocs.push(listing.location.province.toLowerCase());
+    }
+    if (listing.location?.city) {
+      listingLocs.push(listing.location.city.toLowerCase());
+    }
+    if (listing.location?.addressLine) {
+      listingLocs.push(listing.location.addressLine.toLowerCase());
+    }
+    if (typeof listing.location === "string") {
+      listingLocs.push(listing.location.toLowerCase());
+    }
+    const locationMatches = listingLocs.some((value) => value.includes(loc));
+    if (!locationMatches) return false;
   }
 
   const rent = Number(listing.monthlyRent || 0);
@@ -151,7 +206,9 @@ exports.createListing = catchAsync(async (req, res, next) => {
       await sendEmail({
         to,
         subject: "New property matching your saved search",
-        text: `A new property was listed in ${newListing.location} for ${newListing.monthlyRent}. Open the app to view details.`,
+        text: `A new property was listed in ${
+          getNormalizedProvinceValue(newListing.location)
+        } for ${newListing.monthlyRent}. Open the app to view details.`,
       });
       s.lastNotifiedAt = new Date();
       await s.save({ validateBeforeSave: false });
@@ -368,9 +425,18 @@ exports.getListings = catchAsync(async (req, res, next) => {
   }
 
   // 3b) Location/area search
+  const province = (req.query.province || "").toString().trim();
   const location = (req.query.location || "").toString().trim();
-  if (location) {
-    filter.location = new RegExp(location, "i");
+  if (province) {
+    const locQuery = new RegExp(escapeRegex(province), "i");
+    addAndCondition(filter, {
+      $or: [{ "location.province": locQuery }, { location: locQuery }],
+    });
+  } else if (location) {
+    const locQuery = new RegExp(escapeRegex(location), "i");
+    addAndCondition(filter, {
+      $or: [{ "location.province": locQuery }, { location: locQuery }],
+    });
   }
 
   // 3c) Price range (monthlyRent)
@@ -470,60 +536,38 @@ exports.getHomeGroupedByLocation = catchAsync(async (req, res, next) => {
   const isPremium = req.user ? isPremiumTenant(req.user) : false;
   const statusFilter = isPremium ? { $in: ["active", "early_access"] } : "active";
 
-  // Group active listings by a normalized location key (trim + lower-case),
-  // then sort listings/groups by recency for the home location slider.
   const grouped = await Listing.aggregate([
+    {
+      $addFields: {
+        _normalizedProvince: {
+          $ifNull: ["$location.province", "$location"],
+        },
+      },
+    },
     {
       $match: {
         status: statusFilter,
-        location: { $exists: true, $type: "string", $ne: "" },
-      },
-    },
-    {
-      $addFields: {
-        _locationTrimmed: { $trim: { input: "$location" } },
-      },
-    },
-    {
-      $match: {
-        _locationTrimmed: { $ne: "" },
-      },
-    },
-    {
-      $addFields: {
-        _normalizedLocation: { $toLower: "$_locationTrimmed" },
-        _fallbackImage: {
-          $ifNull: [
-            "$image",
-            {
-              $ifNull: [
-                { $arrayElemAt: ["$images", 0] },
-                { $ifNull: [{ $arrayElemAt: ["$imageUrls", 0] }, null] },
-              ],
-            },
-          ],
-        },
+        _normalizedProvince: { $exists: true, $ne: "" },
       },
     },
     { $sort: { createdAt: -1 } },
     {
       $group: {
-        _id: "$_normalizedLocation",
-        location: { $first: "$_locationTrimmed" },
+        _id: "$_normalizedProvince",
+        location: { $first: "$_normalizedProvince" },
         mostRecentListing: { $first: "$createdAt" },
         listings: {
           $push: {
             _id: "$_id",
             name: "$name",
-            location: "$_locationTrimmed",
+            location: "$_normalizedProvince",
             monthlyRent: "$monthlyRent",
             bedrooms: "$bedrooms",
             totalRooms: "$totalRooms",
             amenities: "$amenities",
             status: "$status",
             studentAccommodation: "$studentAccommodation",
-            image: "$_fallbackImage",
-            images: { $ifNull: ["$images", "$imageUrls"] },
+            image: { $arrayElemAt: ["$imageUrls", 0] },
             createdAt: "$createdAt",
           },
         },
@@ -553,3 +597,7 @@ exports.getHomeGroupedByLocation = catchAsync(async (req, res, next) => {
     data: grouped,
   });
 });
+
+exports.__testables = {
+  matchesSavedSearch,
+};

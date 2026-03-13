@@ -13,7 +13,12 @@ export const listingSchema = Yup.object().shape({
   name: Yup.string().required("Name is required").nullable(),
   description: Yup.string().required("Description is required").nullable(),
   address: Yup.string().required("Address is required").nullable(),
-  location: Yup.string().required("Province is required").nullable(),
+  location: Yup.object()
+    .shape({
+      province: Yup.string().required("Province is required"),
+      city: Yup.string().optional(),
+    })
+    .required(),
   phoneNumber: Yup.string()
     .required("Contact number is required")
     .min(12, "Contact number is required")

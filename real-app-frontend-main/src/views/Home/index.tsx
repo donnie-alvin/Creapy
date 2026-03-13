@@ -36,13 +36,6 @@ const Banner = {
   cursor: "pointer",
 };
 
-const images = [
-  "https://images.unsplash.com/photo-1523217582562-09d0def993a6?q=80&w=1780&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
-  "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?q=80&w=2070&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
-  "https://images.unsplash.com/photo-1628744448840-55bdb2497bd4?q=80&w=2070&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
-  "https://images.unsplash.com/photo-1505691723518-36a5ac3be353?q=80&w=2070&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
-];
-
 const Home = () => {
   const navigate = useNavigate();
   const [heroSearch, setHeroSearch] = useState("");
@@ -56,7 +49,6 @@ const Home = () => {
   const {
     data: groupedByLocationData,
     isLoading: groupedByLocationLoading,
-    isError: groupedByLocationError,
   } = useGetHomeGroupedByLocationQuery({ locationsLimit: 6, perLocation: 3 });
 
   const highlightedHeroListings = highlightedData?.data || [];
@@ -193,7 +185,7 @@ const Home = () => {
                     key={province.value}
                     onClick={() => {
                       setLocationAnchor(null);
-                      navigateToSearch({ location: province.value });
+                      navigateToSearch({ province: province.value });
                     }}
                   >
                     {province.label}
@@ -328,6 +320,10 @@ const Home = () => {
         </AppCard>
       </AppContainer>
 
+      <AppContainer sx={{ my: { xs: 3, md: 4 } }}>
+        <Heading>Featured Listings</Heading>
+      </AppContainer>
+
       {!highlightedLoading && highlightedHeroListings.length > 0 ? (
         <AppContainer sx={{ my: { xs: 3, md: 4 } }}>
           <Swiper
@@ -425,120 +421,123 @@ const Home = () => {
             my: { xs: 6, md: 8 },
           }}
         >
-          <Swiper
-            slidesPerView={1}
-            spaceBetween={30}
-            centeredSlides={true}
-            autoplay={{
-              delay: 3000,
-              disableOnInteraction: false,
-            }}
-            pagination={{
-              clickable: true,
-            }}
-            modules={[Autoplay, Pagination]}
-            speed={1500}
-            effect="fade"
-          >
-            {groupedSlides?.length > 0 && !groupedByLocationError
-              ? groupedSlides.map((group: any) => (
-                  <SwiperSlide key={group?.location} style={Banner}>
-                    <AppCard sx={{ width: "100%" }}>
-                      <Box sx={{ p: { xs: 2, md: 2.5 } }}>
-                        <Heading sx={{ color: "#475569", marginBottom: 1 }}>
-                          {group?.location}
-                        </Heading>
-                        <Grid container spacing={2}>
-                          {group?.listings?.map((item: any) => (
-                            <Grid item xs={12} sm={6} md={4} key={item?._id}>
+          <Heading sx={{ marginBottom: 2 }}>By Province</Heading>
+          {groupedSlides?.length > 0 ? (
+            <Swiper
+              slidesPerView={1}
+              spaceBetween={30}
+              centeredSlides={true}
+              autoplay={{
+                delay: 3000,
+                disableOnInteraction: false,
+              }}
+              pagination={{
+                clickable: true,
+              }}
+              modules={[Autoplay, Pagination]}
+              speed={1500}
+              effect="fade"
+            >
+              {groupedSlides.map((group: any) => (
+                <SwiperSlide key={group?.location} style={Banner}>
+                  <AppCard sx={{ width: "100%" }}>
+                    <Box sx={{ p: { xs: 2, md: 2.5 } }}>
+                      <Heading sx={{ color: "#475569", marginBottom: 1 }}>
+                        {group?.location}
+                      </Heading>
+                      <Grid container spacing={2}>
+                        {group?.listings?.map((item: any) => (
+                          <Grid item xs={12} sm={6} md={4} key={item?._id}>
+                            <Box
+                              sx={{ cursor: "pointer" }}
+                              onClick={() => {
+                                navigate(`/listing/${item?._id}`);
+                              }}
+                            >
                               <Box
-                                sx={{ cursor: "pointer" }}
-                                onClick={() => {
-                                  navigate(`/listing/${item?._id}`);
+                                sx={{
+                                  height: { xs: 140, sm: 160, md: 180 },
+                                  overflow: "hidden",
+                                  position: "relative",
+                                  borderRadius: "12px",
+                                  background: "#e2e8f0",
                                 }}
                               >
-                                <Box
-                                  sx={{
-                                    height: { xs: 140, sm: 160, md: 180 },
-                                    overflow: "hidden",
-                                    position: "relative",
-                                    borderRadius: "12px",
-                                    background: "#e2e8f0",
-                                  }}
-                                >
-                                  {getListingImage(item) ? (
-                                    <img
-                                      src={getListingImage(item)}
-                                      alt={item?.name || "listing"}
-                                      height="100%"
-                                      width="100%"
-                                      style={{ objectFit: "cover" }}
-                                    />
-                                  ) : null}
-                                  {item?.status === "early_access" ? (
-                                    <Box
-                                      sx={{
-                                        background: "#dbeafe",
-                                        color: "#1e40af",
-                                        fontSize: "11px",
-                                        fontWeight: 700,
-                                        borderRadius: "999px",
-                                        padding: "3px 10px",
-                                        display: "inline-block",
-                                        position: "absolute",
-                                        top: 8,
-                                        left: 8,
-                                        zIndex: 1,
-                                        pointerEvents: "none",
-                                      }}
-                                    >
-                                      ⚡ Early Access
-                                    </Box>
-                                  ) : null}
-                                  {item?.studentAccommodation ? (
-                                    <Box
-                                      sx={{
-                                        ...studentAccommodationOverlayBadgeSx,
-                                        top: item?.status === "early_access" ? 36 : 8,
-                                      }}
-                                    >
-                                      🎓 Student Accommodation
-                                    </Box>
-                                  ) : null}
-                                </Box>
-                                <SubHeading
-                                  sx={{
-                                    fontWeight: 600,
-                                    fontSize: "14px",
-                                    color: "#1f2937",
-                                    marginTop: 1,
-                                  }}
-                                >
-                                  {item?.name}
-                                </SubHeading>
+                                {getListingImage(item) ? (
+                                  <img
+                                    src={getListingImage(item)}
+                                    alt={item?.name || "listing"}
+                                    height="100%"
+                                    width="100%"
+                                    style={{ objectFit: "cover" }}
+                                  />
+                                ) : null}
+                                {item?.status === "early_access" ? (
+                                  <Box
+                                    sx={{
+                                      background: "#dbeafe",
+                                      color: "#1e40af",
+                                      fontSize: "11px",
+                                      fontWeight: 700,
+                                      borderRadius: "999px",
+                                      padding: "3px 10px",
+                                      display: "inline-block",
+                                      position: "absolute",
+                                      top: 8,
+                                      left: 8,
+                                      zIndex: 1,
+                                      pointerEvents: "none",
+                                    }}
+                                  >
+                                    ⚡ Early Access
+                                  </Box>
+                                ) : null}
+                                {item?.studentAccommodation ? (
+                                  <Box
+                                    sx={{
+                                      ...studentAccommodationOverlayBadgeSx,
+                                      top: item?.status === "early_access" ? 36 : 8,
+                                    }}
+                                  >
+                                    🎓 Student Accommodation
+                                  </Box>
+                                ) : null}
                               </Box>
-                            </Grid>
-                          ))}
-                        </Grid>
-                      </Box>
-                    </AppCard>
-                  </SwiperSlide>
-                ))
-              : images?.map((image: any) => (
-                  <SwiperSlide key={image} style={Banner}>
-                    <Box sx={{ width: "100%", height: { xs: 260, sm: 360, md: 520 } }}>
-                      <img
-                        src={image}
-                        alt="listing"
-                        width="100%"
-                        height="100%"
-                        style={{ objectFit: "cover" }}
-                        className="swiper-lazy"
-                      />
+                              <SubHeading
+                                sx={{
+                                  fontWeight: 600,
+                                  fontSize: "14px",
+                                  color: "#1f2937",
+                                  marginTop: 1,
+                                }}
+                              >
+                                {item?.name}
+                              </SubHeading>
+                            </Box>
+                          </Grid>
+                        ))}
+                      </Grid>
                     </Box>
-                  </SwiperSlide>
-                ))}
-          </Swiper>
+                  </AppCard>
+                </SwiperSlide>
+              ))}
+            </Swiper>
+          ) : (
+            <AppCard sx={{ width: "100%" }}>
+              <Box
+                sx={{
+                  p: { xs: 2, md: 2.5 },
+                  background: "#fff",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "10px",
+                  color: "#334155",
+                  fontSize: "14px",
+                }}
+              >
+                No province listings yet. Check back soon.
+              </Box>
+            </AppCard>
+          )}
         </Box>
       </AppContainer>
 

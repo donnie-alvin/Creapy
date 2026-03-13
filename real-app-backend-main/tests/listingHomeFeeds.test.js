@@ -122,9 +122,16 @@ test("getHomeGroupedByLocation builds grouped response with limits", async () =>
   assert.ok(
     pipeline.some(
       (stage) =>
+        stage.$addFields &&
+        stage.$addFields._normalizedProvince
+    )
+  );
+  assert.ok(
+    pipeline.some(
+      (stage) =>
         stage.$match &&
         stage.$match.status === "active" &&
-        stage.$match.location
+        stage.$match._normalizedProvince
     )
   );
   assert.ok(
@@ -139,4 +146,34 @@ test("getHomeGroupedByLocation builds grouped response with limits", async () =>
   assert.ok(
     pipeline.some((stage) => stage.$limit === 3)
   );
+});
+
+test("getListings applies compatible province filter for canonical and legacy locations", async () => {
+  let capturedFilter = null;
+  Listing.updateMany = async () => ({ modifiedCount: 0 });
+
+  Listing.find = (filter) => {
+    capturedFilter = filter;
+    return {
+      skip() {
+        return this;
+      },
+      limit() {
+        return this;
+      },
+      async sort() {
+        return [];
+      },
+    };
+  };
+
+  await invokeController(listingController.getListings, {
+    query: { province: "Harare" },
+  });
+
+  assert.ok(Array.isArray(capturedFilter.$and));
+  assert.equal(capturedFilter.$and.length, 1);
+  assert.equal(capturedFilter.$and[0].$or.length, 2);
+  assert.match("Harare", capturedFilter.$and[0].$or[0]["location.province"]);
+  assert.match("Harare", capturedFilter.$and[0].$or[1].location);
 });

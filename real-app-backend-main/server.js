@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 require("dotenv").config();
 // Custom Imports
 const app = require("./app");
+const Listing = require("./models/listingModel");
 
 process.on("uncaughtException", (err) => {
   console.log("UNCAUGHT EXCEPTION! 💥 Shutting down...");
@@ -35,6 +36,12 @@ async function start() {
     });
     console.log("Connected to MongoDB".cyan.underline.bold);
     console.log("Environment:", `${process.env.NODE_ENV || "development"}`.yellow);
+    const migration = await Listing.backfillLegacyLocations();
+    if (migration.modifiedCount > 0) {
+      console.log(
+        `Migrated ${migration.modifiedCount} legacy listing location records`.yellow
+      );
+    }
   } catch (err) {
     console.error("Failed to connect to MongoDB:", err.message);
     process.exit(1);

@@ -27,10 +27,34 @@ const listingSchema = new mongoose.Schema(
       type: Number,
       required: [true, "Please provide monthly rent"],
     },
-    
     location: {
-      type: String,
-      required: [true, "Please provide location / area"],
+      addressLine: {
+        type: String,
+        default: "",
+      },
+      country: {
+        type: String,
+        default: "Zimbabwe",
+      },
+      province: {
+        type: String,
+        required: [true, "Please provide a province"],
+        default: "",
+      },
+      city: {
+        type: String,
+        default: "",
+      },
+      coordinates: {
+        lat: {
+          type: Number,
+          default: null,
+        },
+        lng: {
+          type: Number,
+          default: null,
+        },
+      },
     },
     amenities: {
       solar: { type: Boolean, default: false },
@@ -103,6 +127,32 @@ listingSchema.index(
     },
   }
 );
+
+listingSchema.statics.backfillLegacyLocations = async function () {
+  return this.collection.updateMany(
+    { location: { $type: "string" } },
+    [
+      {
+        $set: {
+          location: {
+            addressLine: { $ifNull: ["$address", ""] },
+            country: "Zimbabwe",
+            province: {
+              $trim: {
+                input: { $ifNull: ["$location", ""] },
+              },
+            },
+            city: "",
+            coordinates: {
+              lat: null,
+              lng: null,
+            },
+          },
+        },
+      },
+    ]
+  );
+};
 
 const Listing = new mongoose.model("Listing", listingSchema);
 module.exports = Listing;
