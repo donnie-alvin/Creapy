@@ -30,6 +30,7 @@ import AppCard from "../../components/ui/AppCard";
 import AppButton from "../../components/ui/AppButton";
 import { Heading } from "../../components/Heading";
 import OverlayLoader from "../../components/Spinner/OverlayLoader";
+import { studentAccommodationBadgeSx } from "../../styles/listingBadges";
 
 const getListingStatusBadge = (status: string) => {
   if (status === "pending_payment") {
@@ -161,7 +162,7 @@ const LandlordDashboard = () => {
     useGetMyPaymentsQuery(undefined);
 
   return (
-    <Box sx={{ marginTop: "50px" }}>
+    <Box sx={{ mt: { xs: 5, md: 6 } }}>
       <AppContainer>
         <Box
           sx={{
@@ -169,6 +170,8 @@ const LandlordDashboard = () => {
             justifyContent: "space-between",
             alignItems: "center",
             marginBottom: "16px",
+            flexWrap: "wrap",
+            gap: 1,
           }}
         >
           <Heading>My Listings</Heading>
@@ -203,6 +206,7 @@ const LandlordDashboard = () => {
             sx={{
               borderRadius: "12px",
               boxShadow: "0 2px 8px rgba(15,23,42,0.06)",
+              overflowX: "auto",
             }}
           >
             <Table>
@@ -248,6 +252,11 @@ const LandlordDashboard = () => {
                       >
                         {item?.name}
                       </Box>
+                      {item?.studentAccommodation ? (
+                        <Box sx={{ ...studentAccommodationBadgeSx, mt: 0.5 }}>
+                          🎓 Student Accommodation
+                        </Box>
+                      ) : null}
                     </TableCell>
                     <TableCell sx={{ color: "#6b7280", fontSize: "14px" }}>
                       {item?.location ?? "—"}
@@ -318,7 +327,7 @@ const LandlordDashboard = () => {
           </TableContainer>
         )}
 
-        <Heading sx={{ marginTop: "40px", marginBottom: "16px" }}>
+        <Heading sx={{ mt: { xs: 4, md: 5 }, mb: "16px" }}>
           Payment History
         </Heading>
 
@@ -334,6 +343,7 @@ const LandlordDashboard = () => {
             sx={{
               borderRadius: "12px",
               boxShadow: "0 2px 8px rgba(15,23,42,0.06)",
+              overflowX: "auto",
             }}
           >
             <Table>

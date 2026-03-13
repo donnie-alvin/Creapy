@@ -75,6 +75,10 @@ const listingSchema = new mongoose.Schema(
       type: Boolean,
       required: [true, "Please provide the offer status"],
     },
+    studentAccommodation: {
+      type: Boolean,
+      default: false,
+    },
     imageUrls: {
       type: Array,
       required: [true, "Please provide the image urls"],

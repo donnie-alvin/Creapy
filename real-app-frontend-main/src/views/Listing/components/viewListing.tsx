@@ -12,6 +12,7 @@ import OverlayLoader from "../../../components/Spinner/OverlayLoader";
 import { Heading, SubHeading } from "../../../components/Heading";
 import AppContainer from "../../../components/ui/AppContainer";
 import AppCard from "../../../components/ui/AppCard";
+import { studentAccommodationBadgeSx } from "../../../styles/listingBadges";
 // Utils Imports
 import { maskingPhoneNumber, thousandSeparatorNumber } from "../../../utils";
 // React Icons
@@ -74,7 +75,7 @@ const ViewListing = () => {
           ))}
         </Swiper>
         <AppContainer>
-          <Box sx={{ margin: "30px 0" }}>
+          <Box sx={{ my: { xs: 3, md: 4 } }}>
             <Grid container spacing={3}>
               <Grid item xs={12} md={8} lg={8}>
                 <AppCard sx={{ p: { xs: 2.5, md: 3 } }}>
@@ -162,6 +163,11 @@ const ViewListing = () => {
                         }}
                       >
                         ⚡ Early Access
+                      </Box>
+                    ) : null}
+                    {data?.data?.studentAccommodation ? (
+                      <Box sx={studentAccommodationBadgeSx}>
+                        🎓 Student Accommodation
                       </Box>
                     ) : null}
                   </Box>
@@ -252,7 +258,7 @@ const ViewListing = () => {
                     >
                       <IoMdPerson /> Name
                     </Box>
-                    <Box>{userData?.data?.username}</Box>
+                    <Box sx={{ wordBreak: "break-all" }}>{userData?.data?.username}</Box>
                   </Box>
                   <Box
                     sx={{
@@ -273,7 +279,7 @@ const ViewListing = () => {
                     >
                       <HiOutlineMail /> Email
                     </Box>
-                    <Box>{userData?.data?.email}</Box>
+                    <Box sx={{ wordBreak: "break-all" }}>{userData?.data?.email}</Box>
                   </Box>
                   <Box
                     sx={{
@@ -294,7 +300,9 @@ const ViewListing = () => {
                     >
                       <IoIosCall /> Phone
                     </Box>
-                    <Box>{maskingPhoneNumber(data?.data?.phoneNumber)}</Box>
+                    <Box sx={{ wordBreak: "break-all" }}>
+                      {maskingPhoneNumber(data?.data?.phoneNumber)}
+                    </Box>
                   </Box>
                 </AppCard>
               </Grid>

@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 // MUI Imports
-import { Box, Grid } from "@mui/material";
+import { Box } from "@mui/material";
 // Redux Imports
 import {
   useDeleteListingMutation,
@@ -24,6 +24,7 @@ import DotLoader from "../../../components/Spinner/dotLoader";
 import AppContainer from "../../../components/ui/AppContainer";
 import AppCard from "../../../components/ui/AppCard";
 import AppButton from "../../../components/ui/AppButton";
+import { studentAccommodationBadgeSx } from "../../../styles/listingBadges";
 
 const getListingStatusBadge = (status: string) => {
   if (status === "pending_payment") {
@@ -147,13 +148,13 @@ const AllListings = () => {
   };
 
   return (
-    <Box sx={{ marginTop: "50px" }}>
+    <Box sx={{ mt: { xs: 5, md: 6 } }}>
       {isLoading && <OverlayLoader />}
       <AppContainer>
         <Box
           sx={{
             display: "flex",
-            justifyContent: "center",
+            justifyContent: "flex-start",
             alignItems: "center",
             flexDirection: "column",
             gap: 2,
@@ -190,8 +191,8 @@ const AllListings = () => {
                   <AppCard
                     sx={{
                       width: "100%",
-                      padding: "20px",
-                      margin: "20px 0",
+                      p: { xs: 2, md: 2.5 },
+                      my: { xs: 2, md: 2.5 },
                     }}
                     key={item?._id}
                   >
@@ -202,7 +203,7 @@ const AllListings = () => {
                         flexDirection: { xs: "column", sm: "row" },
                       }}
                     >
-                      <Grid item xs={12} sm={3} md={2}>
+                      <Box sx={{ width: { xs: "100%", sm: "160px" } }}>
                         <img
                           src={item?.imageUrls[0]}
                           width="100%"
@@ -210,8 +211,8 @@ const AllListings = () => {
                           alt="listing"
                           style={{ borderRadius: "5px" }}
                         />
-                      </Grid>
-                      <Grid item xs={12} sm={9} md={10}>
+                      </Box>
+                      <Box sx={{ flex: 1 }}>
                         <Box
                           sx={{
                             display: "flex",
@@ -247,6 +248,11 @@ const AllListings = () => {
                                 {item?.name}
                               </Box>
                               {getListingStatusBadge(item?.status)}
+                              {item?.studentAccommodation ? (
+                                <Box sx={studentAccommodationBadgeSx}>
+                                  🎓 Student Accommodation
+                                </Box>
+                              ) : null}
                             </Box>
                             <Box
                               sx={{
@@ -338,10 +344,10 @@ const AllListings = () => {
                           </Box>
                         </Box>
                         <Box
-                          sx={{
-                            display: "flex",
-                            justifyContent: { xs: "flex-start", sm: "end" },
-                            gap: 1,
+                            sx={{
+                              display: "flex",
+                              justifyContent: { xs: "flex-start", sm: "flex-end" },
+                              gap: 1,
                             marginTop: "5px",
                             alignItems: "center",
                             flexWrap: "wrap",
@@ -366,7 +372,7 @@ const AllListings = () => {
                             </Box>
                           </Box>{" "}
                         </Box>
-                      </Grid>
+                      </Box>
                     </Box>
                   </AppCard>
                 );

@@ -424,6 +424,10 @@ exports.getListings = catchAsync(async (req, res, next) => {
     }
   }
 
+  if (req.query.studentAccommodation === "true") {
+    filter.studentAccommodation = true;
+  }
+
   // 4) Find all listings
   const listings = await Listing.find(filter)
     .skip(skip)
@@ -516,6 +520,8 @@ exports.getHomeGroupedByLocation = catchAsync(async (req, res, next) => {
             bedrooms: "$bedrooms",
             totalRooms: "$totalRooms",
             amenities: "$amenities",
+            status: "$status",
+            studentAccommodation: "$studentAccommodation",
             image: "$_fallbackImage",
             images: { $ifNull: ["$images", "$imageUrls"] },
             createdAt: "$createdAt",

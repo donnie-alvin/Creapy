@@ -21,6 +21,7 @@ import AppSelect from "../../components/ui/AppSelect";
 import AppButton from "../../components/ui/AppButton";
 import DotLoader from "../../components/Spinner/dotLoader";
 import { ZIMBABWE_PROVINCES } from "../../config/zimbabweProvinces";
+import { studentAccommodationBadgeSx } from "../../styles/listingBadges";
 // Hooks Imports
 import useTypedSelector from "../../hooks/useTypedSelector";
 // Redux Imports
@@ -84,6 +85,7 @@ const SearchPage = () => {
     parking: false,
     furnished: false,
     offer: false,
+    studentAccommodation: false,
     sort: "createdAt_desc",
   });
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -116,6 +118,7 @@ const SearchPage = () => {
       "parking",
       "furnished",
       "offer",
+      "studentAccommodation",
       "sort",
     ];
 
@@ -146,6 +149,7 @@ const SearchPage = () => {
     const parkingFromUrl = urlParams.get("parking");
     const furnishedFromUrl = urlParams.get("furnished");
     const offerFromUrl = urlParams.get("offer");
+    const studentAccommodationFromUrl = urlParams.get("studentAccommodation");
     const sortFromUrl = urlParams.get("sort");
     const locationFromUrl = urlParams.get("location");
     const minRentFromUrl = urlParams.get("minRent");
@@ -173,6 +177,7 @@ const SearchPage = () => {
         parking: parkingFromUrl === "true" ? true : false,
         furnished: furnishedFromUrl === "true" ? true : false,
         offer: offerFromUrl === "true" ? true : false,
+        studentAccommodation: studentAccommodationFromUrl === "true",
         sort: sortFromUrl || "createdAt_desc",
       });
     }
@@ -209,6 +214,7 @@ const SearchPage = () => {
     urlParams.set("parking", sideBarData.parking);
     urlParams.set("furnished", sideBarData.furnished);
     urlParams.set("offer", sideBarData.offer);
+    urlParams.set("studentAccommodation", sideBarData.studentAccommodation);
     urlParams.set("sort", sideBarData.sort);
     urlParams.set("location", sideBarData.location);
     urlParams.set("minRent", sideBarData.minRent);
@@ -238,18 +244,19 @@ const SearchPage = () => {
   };
 
   return (
-    <Box sx={{ margin: "35px 0 0 0" }}>
+    <Box sx={{ mt: { xs: 4, md: 4.5 } }}>
       <AppContainer>
       {loading && (
-        <Box
-          sx={{
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            position: "relative",
-          }}
-        >
-          <Box sx={{ position: "absolute" }}>
+        <Box sx={{ position: "relative", minHeight: 40 }}>
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              position: "absolute",
+              inset: 0,
+            }}
+          >
             <DotLoader color="#334155" />
           </Box>
         </Box>
@@ -295,6 +302,7 @@ const SearchPage = () => {
                   <Grid item xs={6}>
                     <AppInput
                       value={sideBarData.minRent}
+                      size="small"
                       onChange={(e) =>
                         setSideBarData({ ...sideBarData, minRent: e.target.value })
                       }
@@ -305,6 +313,7 @@ const SearchPage = () => {
                   <Grid item xs={6}>
                     <AppInput
                       value={sideBarData.maxRent}
+                      size="small"
                       onChange={(e) =>
                         setSideBarData({ ...sideBarData, maxRent: e.target.value })
                       }
@@ -319,6 +328,7 @@ const SearchPage = () => {
                 <SubHeading sx={{ marginBottom: "5px" }}>Min Rooms</SubHeading>
                 <AppInput
                   value={sideBarData.minTotalRooms}
+                  size="small"
                   onChange={(e) =>
                     setSideBarData({ ...sideBarData, minTotalRooms: e.target.value })
                   }
@@ -443,6 +453,18 @@ const SearchPage = () => {
                     });
                   }}
                 />
+                <FormControlLabel
+                  control={<Checkbox />}
+                  label="Student Accommodation"
+                  name="studentAccommodation"
+                  checked={sideBarData.studentAccommodation}
+                  onChange={() => {
+                    setSideBarData({
+                      ...sideBarData,
+                      studentAccommodation: !sideBarData.studentAccommodation,
+                    });
+                  }}
+                />
               </Box>
               <SubHeading sx={{ margin: "5px 0" }}>Sort</SubHeading>
               <AppSelect
@@ -558,10 +580,7 @@ const SearchPage = () => {
                               marginTop: "5px",
                               color: "text.secondary",
                               fontSize: "13px",
-                              minHeight: "44px",
-                              "@media (max-width: 600px)": {
-                                height: "unset",
-                              },
+                              minHeight: { xs: "auto", md: "44px" },
                             }}
                           >
                             {item?.description?.length > 150
@@ -597,6 +616,11 @@ const SearchPage = () => {
                               </Box>
                             </Box>
                           </Box>
+                          {item?.studentAccommodation ? (
+                            <Box sx={{ ...studentAccommodationBadgeSx, mt: 1 }}>
+                              🎓 Student Accommodation
+                            </Box>
+                          ) : null}
                           <Box
                             sx={{
                               marginTop: "7px",

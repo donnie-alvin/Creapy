@@ -172,14 +172,14 @@ const TenantDashboard = () => {
   };
 
   return (
-    <Box sx={{ marginTop: "50px" }}>
+    <Box sx={{ mt: { xs: 5, md: 6 } }}>
       <AppContainer>
         <Typography variant="h5">Tenant Dashboard</Typography>
         <Typography variant="body2" color="text.secondary">
           Manage your premium plan and saved searches.
         </Typography>
 
-        <AppCard sx={{ marginTop: "20px", padding: "20px" }}>
+        <AppCard sx={{ mt: "20px", p: { xs: 2, md: 2.5 } }}>
           <Typography variant="h6">Premium Membership</Typography>
           {premiumActive ? (
             <Box sx={{ marginTop: "12px" }}>
@@ -241,14 +241,16 @@ const TenantDashboard = () => {
               ) : null}
               {!showPolling ? (
                 <>
-                  <PrimaryInput
-                    label="Your EcoCash Number"
-                    type="tel"
-                    placeholder="+263 77 123 4567"
-                    value={phone}
-                    onChange={(event) => setPhone(event.target.value)}
-                  />
-                  <Box sx={{ marginTop: "12px", display: "flex", gap: 1 }}>
+                  <Box sx={{ mt: 1.5 }}>
+                    <PrimaryInput
+                      label="Your EcoCash Number"
+                      type="tel"
+                      placeholder="+263 77 123 4567"
+                      value={phone}
+                      onChange={(event) => setPhone(event.target.value)}
+                    />
+                  </Box>
+                  <Box sx={{ mt: 1.5, display: "flex", gap: 1 }}>
                     <AppButton
                       onClick={handleInitiatePremium}
                       disabled={isInitiatingPremium}
@@ -271,7 +273,7 @@ const TenantDashboard = () => {
           ) : null}
         </AppCard>
 
-        <AppCard sx={{ marginTop: "20px", padding: "20px" }}>
+        <AppCard sx={{ mt: "20px", p: { xs: 2, md: 2.5 } }}>
           <Typography variant="h6" sx={{ marginBottom: "10px" }}>
             Saved Searches
           </Typography>

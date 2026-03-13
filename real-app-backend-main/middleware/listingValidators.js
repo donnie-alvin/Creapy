@@ -22,6 +22,10 @@ const createListingValidators = [
   body("bathrooms")
     .isInt({ min: 1 })
     .withMessage("bathrooms must be an integer greater than or equal to 1"),
+  body("studentAccommodation")
+    .optional()
+    .isBoolean()
+    .withMessage("studentAccommodation must be a boolean"),
 ];
 
 module.exports = {

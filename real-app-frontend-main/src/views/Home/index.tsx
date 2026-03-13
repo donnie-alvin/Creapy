@@ -20,6 +20,9 @@ import AppCard from "../../components/ui/AppCard";
 import AppButton from "../../components/ui/AppButton";
 import AppInput from "../../components/ui/AppInput";
 import { ZIMBABWE_PROVINCES } from "../../config/zimbabweProvinces";
+import {
+  studentAccommodationOverlayBadgeSx,
+} from "../../styles/listingBadges";
 
 const Banner = {
   width: "100%",
@@ -125,10 +128,7 @@ const Home = () => {
   return (
     <Box
       sx={{
-        margin: "60px 0 0 0",
-        "@media (max-width: 992px)": {
-          margin: "40px 0 0 0",
-        },
+        mt: { xs: 5, md: 7.5 },
       }}
     >
       {showOverlay && <OverlayLoader />}
@@ -165,7 +165,12 @@ const Home = () => {
                 value={heroSearch}
                 onChange={(e) => setHeroSearch(e.target.value)}
               />
-              <AppButton type="submit">Search Properties</AppButton>
+              <AppButton
+                type="submit"
+                sx={{ flexShrink: 0, width: { xs: "100%", sm: "auto" } }}
+              >
+                Search Properties
+              </AppButton>
             </Box>
             <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, marginTop: 2 }}>
               <Box
@@ -324,7 +329,7 @@ const Home = () => {
       </AppContainer>
 
       {!highlightedLoading && highlightedHeroListings.length > 0 ? (
-        <AppContainer sx={{ margin: "30px 0" }}>
+        <AppContainer sx={{ my: { xs: 3, md: 4 } }}>
           <Swiper
             modules={[Autoplay, Pagination]}
             slidesPerView={1}
@@ -397,6 +402,16 @@ const Home = () => {
                       ⚡ Early Access
                     </Box>
                   ) : null}
+                  {item?.studentAccommodation ? (
+                    <Box
+                      sx={{
+                        ...studentAccommodationOverlayBadgeSx,
+                        top: item?.status === "early_access" ? 36 : 8,
+                      }}
+                    >
+                      🎓 Student Accommodation
+                    </Box>
+                  ) : null}
                 </Box>
               </SwiperSlide>
             ))}
@@ -407,10 +422,7 @@ const Home = () => {
       <AppContainer>
         <Box
           sx={{
-            margin: "70px 0",
-            "@media (max-width: 600px)": {
-              margin: "50px 0",
-            },
+            my: { xs: 6, md: 8 },
           }}
         >
           <Swiper
@@ -432,7 +444,7 @@ const Home = () => {
               ? groupedSlides.map((group: any) => (
                   <SwiperSlide key={group?.location} style={Banner}>
                     <AppCard sx={{ width: "100%" }}>
-                      <Box sx={{ padding: "18px 16px" }}>
+                      <Box sx={{ p: { xs: 2, md: 2.5 } }}>
                         <Heading sx={{ color: "#475569", marginBottom: 1 }}>
                           {group?.location}
                         </Heading>
@@ -481,6 +493,16 @@ const Home = () => {
                                       }}
                                     >
                                       ⚡ Early Access
+                                    </Box>
+                                  ) : null}
+                                  {item?.studentAccommodation ? (
+                                    <Box
+                                      sx={{
+                                        ...studentAccommodationOverlayBadgeSx,
+                                        top: item?.status === "early_access" ? 36 : 8,
+                                      }}
+                                    >
+                                      🎓 Student Accommodation
                                     </Box>
                                   ) : null}
                                 </Box>

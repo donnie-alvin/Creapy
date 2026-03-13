@@ -171,7 +171,7 @@ const Header = () => {
               </IconButton>
             </Box>
 
-            <Box sx={{ flex: 1, minWidth: { xs: "100%", md: 320 } }}>
+            <Box sx={{ flex: 1, minWidth: { xs: "100%", md: 320 }, maxWidth: { md: 480 } }}>
               <form onSubmit={handleSubmit}>
                 <SearchBar
                   placeholder="Search locations, listings..."

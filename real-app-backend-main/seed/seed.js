@@ -283,6 +283,7 @@ function buildListings() {
       phoneNumber: DEMO_PHONE,
       type: 'rent',
       offer: false,
+      studentAccommodation: index % 5 === 0,
       location: config.location,
     };
   });

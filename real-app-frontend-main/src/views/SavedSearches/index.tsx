@@ -60,7 +60,7 @@ const SavedSearches = () => {
 
   if (role !== "tenant") {
     return (
-      <Box sx={{ marginTop: "50px" }}>
+      <Box sx={{ mt: { xs: 5, md: 6 } }}>
         <AppContainer>
           <Heading>Saved Searches</Heading>
           <AppCard sx={{ marginTop: "10px", p: 2 }}>
@@ -72,7 +72,7 @@ const SavedSearches = () => {
   }
 
   return (
-    <Box sx={{ marginTop: "50px" }}>
+    <Box sx={{ mt: { xs: 5, md: 6 } }}>
       <AppContainer>
         <Heading>Saved Searches</Heading>
 
@@ -93,7 +93,7 @@ const SavedSearches = () => {
                 onChange={(e) => setForm({ ...form, location: e.target.value })}
               />
             </Grid>
-            <Grid item xs={6} md={2}>
+            <Grid item xs={12} sm={6} md={2}>
               <AppInput
                 label="Min Rent"
                 type="number"
@@ -101,7 +101,7 @@ const SavedSearches = () => {
                 onChange={(e) => setForm({ ...form, minRent: e.target.value })}
               />
             </Grid>
-            <Grid item xs={6} md={2}>
+            <Grid item xs={12} sm={6} md={2}>
               <AppInput
                 label="Max Rent"
                 type="number"
@@ -109,7 +109,7 @@ const SavedSearches = () => {
                 onChange={(e) => setForm({ ...form, maxRent: e.target.value })}
               />
             </Grid>
-            <Grid item xs={6} md={2}>
+            <Grid item xs={12} sm={6} md={2}>
               <AppInput
                 label="Min Beds"
                 type="number"
@@ -193,6 +193,9 @@ const SavedSearches = () => {
                   alignItems: "center",
                   padding: "10px 0",
                   borderBottom: "1px solid #f1f5f9",
+                  "&:last-child": {
+                    borderBottom: "none",
+                  },
                 }}
               >
                 <Box>

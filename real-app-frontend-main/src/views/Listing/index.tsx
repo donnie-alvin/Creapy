@@ -7,7 +7,6 @@ import { Form, Formik, FormikProps } from "formik";
 // MUI Imports
 import {
   Box,
-  Grid,
   FormControlLabel,
   RadioGroup,
   Checkbox,
@@ -55,6 +54,7 @@ interface listingForm {
   furnished: boolean;
   type: string;
   offer: boolean;
+  studentAccommodation: boolean;
   amenities: {
     solar: boolean;
     borehole: boolean;
@@ -84,6 +84,7 @@ const CreateListing = () => {
     totalRooms: 1,
     furnished: false,
     offer: false,
+    studentAccommodation: false,
     type: "rent",
     amenities: {
       solar: false,
@@ -235,6 +236,7 @@ const CreateListing = () => {
       furnished: data.furnished,
       type: data.type,
       offer: data.offer,
+      studentAccommodation: data.studentAccommodation,
       phoneNumber: parsedPhone.number,
       imageUrls,
       user: resolvedUserId,
@@ -331,6 +333,7 @@ const CreateListing = () => {
         furnished: listingData?.data?.furnished,
         type: listingData?.data?.type,
         offer: listingData?.data?.offer,
+        studentAccommodation: listingData?.data?.studentAccommodation ?? false,
         phoneNumber: listingData?.data?.phoneNumber,
         amenities: listingData?.data?.amenities || {
           solar: false,
@@ -345,13 +348,13 @@ const CreateListing = () => {
   }, [listingData, listingSuccess]);
 
   return (
-    <Box sx={{ marginTop: "50px" }}>
+    <Box sx={{ mt: { xs: 5, md: 6 } }}>
       {listingLoading && <OverlayLoader />}
       <AppContainer>
         <Box sx={{ textAlign: "center" }}>
           <Heading>{id ? "Update" : "Create"} a Listing</Heading>
         </Box>
-        <AppCard sx={{ margin: "30px 0", p: { xs: 2, md: 3 } }}>
+        <AppCard sx={{ my: { xs: 3, md: 4 }, p: { xs: 2, md: 3 } }}>
           <Formik
             initialValues={formValues}
             onSubmit={(values: listingForm) => {
@@ -379,7 +382,7 @@ const CreateListing = () => {
                       flexDirection: { xs: "column", md: "row" },
                     }}
                   >
-                      <Grid item xs={12} md={6} sx={{ width: { xs: "100%", md: "50%" } }}>
+                      <Box sx={{ width: { xs: "100%", md: "50%" } }}>
                         <Box
                           sx={{
                             minHeight:
@@ -735,6 +738,13 @@ const CreateListing = () => {
                               checked={values.offer}
                               onChange={handleChange}
                             />
+                            <FormControlLabel
+                              control={<Checkbox />}
+                              label="Student Accommodation"
+                              name="studentAccommodation"
+                              checked={values.studentAccommodation}
+                              onChange={handleChange}
+                            />
                           </Box>
                           <Box sx={{ marginTop: "10px" }}>
                             <SubHeading sx={{ marginBottom: "5px" }}>
@@ -779,8 +789,8 @@ const CreateListing = () => {
                             </Box>
                           </Box>
                         </Box>
-                      </Grid>
-                      <Grid item xs={12} md={6} sx={{ width: { xs: "100%", md: "50%" } }}>
+                      </Box>
+                      <Box sx={{ width: { xs: "100%", md: "50%" } }}>
                         <Box sx={{ marginTop: "25px" }}>
                           <SubHeading sx={{ marginBottom: "10px" }}>
                             Images :
@@ -925,7 +935,7 @@ const CreateListing = () => {
                           <Box
                             sx={{
                               display: "flex",
-                              justifyContent: "end",
+                              justifyContent: "flex-end",
                               marginTop: "20px",
                             }}
                           >
@@ -943,7 +953,7 @@ const CreateListing = () => {
                             </AppButton>
                           </Box>
                         </Box>
-                      </Grid>
+                      </Box>
                     </Box>
                 </Form>
               );

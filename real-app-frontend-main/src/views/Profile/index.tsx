@@ -211,7 +211,7 @@ const Profile = () => {
   };
 
   return (
-    <Box sx={{ margin: "50px 0 0 0" }}>
+    <Box sx={{ mt: { xs: 5, md: 6 } }}>
       <AppContainer>
         <Grid container spacing={2} justifyContent="center">
           <Grid item xs={12} md={7} lg={6}>
@@ -359,7 +359,7 @@ const Profile = () => {
                         <Box
                           sx={{
                             display: "flex",
-                            justifyContent: "end",
+                            justifyContent: "flex-end",
                             marginTop: "16px",
                           }}
                         >
@@ -376,7 +376,7 @@ const Profile = () => {
                             )}
                           </AppButton>
                         </Box>
-                        <Box sx={{ display: "flex", justifyContent: "end" }}>
+                        <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
                           <AppButton
                             variant="outlined"
                             color="error"
