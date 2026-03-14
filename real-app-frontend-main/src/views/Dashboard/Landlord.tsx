@@ -259,7 +259,9 @@ const LandlordDashboard = () => {
                       ) : null}
                     </TableCell>
                     <TableCell sx={{ color: "#6b7280", fontSize: "14px" }}>
-                      {item?.location ?? "—"}
+                      {typeof item?.location === "object"
+                        ? item?.location?.province || item?.location?.city || "—"
+                        : item?.location ?? "—"}
                     </TableCell>
                     <TableCell>{getListingStatusBadge(item?.status)}</TableCell>
                     <TableCell sx={{ color: "#6b7280", fontSize: "14px" }}>
