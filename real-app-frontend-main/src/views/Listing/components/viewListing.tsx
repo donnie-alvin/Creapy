@@ -1,5 +1,5 @@
 // React Imports
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 // MUI Imports
 import { Box, Grid, Divider } from "@mui/material";
 // Swiper Imports
@@ -23,8 +23,9 @@ import { FaChair } from "react-icons/fa6";
 import { FaBed } from "react-icons/fa";
 import { IoIosCall } from "react-icons/io";
 import { HiOutlineMail } from "react-icons/hi";
-import { IoMdPerson } from "react-icons/io";
 // Redux Imports
+import useTypedSelector from "../../../hooks/useTypedSelector";
+import { selectedUserToken } from "../../../redux/auth/authSlice";
 import { useGetUserQuery } from "../../../redux/api/userApiSlice";
 import { useGetSingleListingQuery } from "../../../redux/api/listingApiSlice";
 
@@ -38,7 +39,10 @@ const iconStyle = {
 
 const ViewListing = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
   SwiperCore.use([Navigation]);
+  const userToken = useTypedSelector(selectedUserToken);
+  const isLoggedIn = Boolean(userToken);
 
   const { data, isLoading } = useGetSingleListingQuery(id as string, {
     skip: !id,
@@ -52,6 +56,14 @@ const ViewListing = () => {
       skip: !id,
     }
   );
+
+  const locationData = data?.data?.location;
+  const publicLocation = [locationData?.city, locationData?.province, locationData?.country]
+    .filter(Boolean)
+    .join(", ");
+  const displayLocation = isLoggedIn
+    ? data?.data?.address || publicLocation || "Location unavailable"
+    : publicLocation || "Location available after login";
 
   if (!id) return <div>Missing listing id</div>;
 
@@ -93,20 +105,8 @@ const ViewListing = () => {
                     }}
                   >
                     <FaLocationDot style={{ color: "#2B6A50" }} />
-                    {data?.data?.address}
+                    {displayLocation}
                   </Box>
-                  {data?.data?.location?.province ? (
-                    <Box
-                      sx={{
-                        marginTop: "8px",
-                        color: "text.secondary",
-                        fontSize: "14px",
-                        fontWeight: 500,
-                      }}
-                    >
-                      📍 {data.data.location.province}, {data.data.location.country}
-                    </Box>
-                  ) : null}
                   <Box
                     sx={{
                       display: "flex",
@@ -268,54 +268,84 @@ const ViewListing = () => {
                         gap: "3px",
                       }}
                     >
-                      <IoMdPerson /> Name
+                      <FaLocationDot /> Address
                     </Box>
-                    <Box sx={{ wordBreak: "break-all" }}>{userData?.data?.username}</Box>
+                    <Box sx={{ wordBreak: "break-word" }}>{data?.data?.address}</Box>
                   </Box>
-                  <Box
-                    sx={{
-                      margin: "15px 0 10px 0",
-                      display: "flex",
-                      alignItems: "center",
-                      flexWrap: "wrap",
-                      rowGap: 1,
-                    }}
-                  >
+                  {isLoggedIn ? (
+                    <>
+                      <Box
+                        sx={{
+                          margin: "15px 0 10px 0",
+                          display: "flex",
+                          alignItems: "center",
+                          flexWrap: "wrap",
+                          rowGap: 1,
+                        }}
+                      >
+                        <Box
+                          sx={{
+                            minWidth: { xs: "80px", sm: "100px" },
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "3px",
+                          }}
+                        >
+                          <HiOutlineMail /> Email
+                        </Box>
+                        <Box sx={{ wordBreak: "break-all" }}>{userData?.data?.email}</Box>
+                      </Box>
+                      <Box
+                        sx={{
+                          margin: "15px 0 10px 0",
+                          display: "flex",
+                          alignItems: "center",
+                          flexWrap: "wrap",
+                          rowGap: 1,
+                        }}
+                      >
+                        <Box
+                          sx={{
+                            minWidth: { xs: "80px", sm: "100px" },
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "3px",
+                          }}
+                        >
+                          <IoIosCall /> Phone
+                        </Box>
+                        <Box sx={{ wordBreak: "break-all" }}>
+                          {maskingPhoneNumber(data?.data?.phoneNumber) || "Not provided"}
+                        </Box>
+                      </Box>
+                    </>
+                  ) : (
                     <Box
                       sx={{
-                        minWidth: { xs: "80px", sm: "100px" },
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "3px",
+                        marginTop: 2,
+                        padding: "16px",
+                        borderRadius: "12px",
+                        border: "1px dashed #cbd5e1",
+                        background: "#f8fafc",
+                        color: "text.secondary",
+                        textAlign: "center",
                       }}
                     >
-                      <HiOutlineMail /> Email
+                      {"🔒 "}
+                      <Box
+                        component="span"
+                        sx={{
+                          color: "#1F4D3A",
+                          fontWeight: 600,
+                          cursor: "pointer",
+                        }}
+                        onClick={() => navigate("/login")}
+                      >
+                        Log in
+                      </Box>
+                      {" to view the landlord's contact details"}
                     </Box>
-                    <Box sx={{ wordBreak: "break-all" }}>{userData?.data?.email}</Box>
-                  </Box>
-                  <Box
-                    sx={{
-                      margin: "15px 0 10px 0",
-                      display: "flex",
-                      alignItems: "center",
-                      flexWrap: "wrap",
-                      rowGap: 1,
-                    }}
-                  >
-                    <Box
-                      sx={{
-                        minWidth: { xs: "80px", sm: "100px" },
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "3px",
-                      }}
-                    >
-                      <IoIosCall /> Phone
-                    </Box>
-                    <Box sx={{ wordBreak: "break-all" }}>
-                      {maskingPhoneNumber(data?.data?.phoneNumber)}
-                    </Box>
-                  </Box>
+                  )}
                 </AppCard>
               </Grid>
             </Grid>

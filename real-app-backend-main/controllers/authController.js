@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 const { promisify } = require("util");
 const bcrypt = require("bcryptjs");
@@ -7,11 +8,64 @@ const catchAsync = require("../utils/catchAsync");
 const User = require("../models/userModel");
 const Listing = require("../models/listingModel");
 const { isPremiumTenant } = require("../utils/monetization");
+const { sendEmail } = require("../utils/email");
 
 const signToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRES_IN,
   });
+};
+
+const hashVerificationToken = (token) =>
+  crypto.createHash("sha256").update(token).digest("hex");
+
+const createEmailVerificationToken = () => {
+  const rawToken = crypto.randomBytes(32).toString("hex");
+  return {
+    rawToken,
+    hashedToken: hashVerificationToken(rawToken),
+    expiresAt: Date.now() + 24 * 60 * 60 * 1000,
+  };
+};
+
+const getAppBaseUrl = () => {
+  const configuredBaseUrl =
+    process.env.APP_BASE_URL || process.env.FRONTEND_URL || "http://localhost:3000";
+
+  return configuredBaseUrl.replace(/\/+$/, "");
+};
+
+const sendVerificationEmail = async (user, rawToken) => {
+  const verificationUrl = `${getAppBaseUrl()}/verify-email?token=${rawToken}`;
+
+  await sendEmail({
+    to: user.email,
+    subject: "Verify your Creapy email",
+    text: `Welcome to Creapy. Verify your email by opening this link: ${verificationUrl}`,
+    html: `
+      <p>Welcome to Creapy.</p>
+      <p>Please verify your email by clicking the link below:</p>
+      <p><a href="${verificationUrl}">${verificationUrl}</a></p>
+      <p>This link expires in 24 hours.</p>
+    `,
+  });
+};
+
+const buildPublicUserPayload = (user, { includeContactDetails = false } = {}) => {
+  const source = user?.toObject ? user.toObject() : user;
+  const payload = {
+    _id: source._id,
+    username: source.username,
+    avatar: source.avatar,
+    role: source.role,
+  };
+
+  if (includeContactDetails) {
+    payload.email = source.email;
+    payload.phoneNumber = source.phoneNumber || null;
+  }
+
+  return payload;
 };
 
 const createSendToken = (user, statusCode, res) => {
@@ -30,26 +84,57 @@ const createSendToken = (user, statusCode, res) => {
 };
 
 exports.signup = catchAsync(async (req, res, next) => {
-  console.log("➡️ signup hit");
-  console.log("BODY:", req.body);
-
-  const { username, email, password, role } = req.body;
+  const { username, email, password, role, phoneNumber, nationalId } = req.body;
   const allowedRoles = ["tenant", "landlord"];
 
   if (role && !allowedRoles.includes(role)) {
     return next(new AppError("Invalid role. Role must be tenant or landlord", 400));
   }
 
-  const newUser = await User.create({
+  if (role === "landlord" && (!phoneNumber || !nationalId)) {
+    return next(
+      new AppError("Phone number and national ID are required for landlords", 400)
+    );
+  }
+
+  const verification = createEmailVerificationToken();
+
+  const newUser = new User({
     username,
     email,
     password,
     ...(role ? { role } : {}),
+    ...(phoneNumber ? { phoneNumber } : {}),
+    ...(nationalId ? { nationalId } : {}),
+    isEmailVerified: false,
+    emailVerificationToken: verification.hashedToken,
+    emailVerificationExpires: verification.expiresAt,
   });
 
-  console.log("✅ user created:", newUser._id);
+  await newUser.save();
 
-  createSendToken(newUser, 201, res);
+  try {
+    await sendVerificationEmail(newUser, verification.rawToken);
+  } catch (error) {
+    await User.deleteOne({ _id: newUser._id });
+
+    return next(
+      new AppError(
+        "We couldn't send the verification email. Please try signing up again.",
+        503
+      )
+    );
+  }
+
+  newUser.password = undefined;
+
+  res.status(201).json({
+    status: "pending_verification",
+    message: "Account created. Please check your email to verify your account.",
+    data: {
+      user: newUser,
+    },
+  });
 });
 
 
@@ -71,22 +156,61 @@ exports.login = catchAsync(async (req, res, next) => {
     return next(new AppError("Incorrect password", 401));
   }
 
+  await user.backfillEmailVerificationStatus();
+
+  if (user.isEmailVerified !== true) {
+    return next(new AppError("Please verify your email before logging in", 403));
+  }
+
   // 4) If everything ok, send token to client
   createSendToken(user, 200, res);
 });
 
+exports.verifyEmail = catchAsync(async (req, res, next) => {
+  const rawToken = req.query.token;
+
+  if (!rawToken) {
+    return next(new AppError("Verification token is required", 400));
+  }
+
+  const hashedToken = hashVerificationToken(rawToken.toString());
+
+  const user = await User.findOne({
+    emailVerificationToken: hashedToken,
+    emailVerificationExpires: { $gt: new Date() },
+  });
+
+  if (!user) {
+    return next(new AppError("Verification link is invalid or has expired", 400));
+  }
+
+  user.isEmailVerified = true;
+  user.emailVerificationToken = null;
+  user.emailVerificationExpires = null;
+  await user.save({ validateBeforeSave: false });
+
+  res.status(200).json({
+    status: "success",
+    message: "Email verified successfully. You can now log in.",
+  });
+});
+
 exports.getUser = catchAsync(async (req, res, next) => {
   const listing = await Listing.findById(req.params.id);
+  if (!listing) {
+    return next(new AppError("No listing found with that ID", 404));
+  }
+
   const user = await User.findById(listing.user);
   if (!user) {
     return next(new AppError("No user found with that ID", 404));
   }
 
-  user.password = undefined;
-
   res.status(200).json({
     status: "success",
-    data: user,
+    data: buildPublicUserPayload(user, {
+      includeContactDetails: Boolean(req.user),
+    }),
   });
 });
 
@@ -173,6 +297,7 @@ exports.google = catchAsync(async (req, res, next) => {
       email,
       password,
       avatar: photo,
+      isEmailVerified: true,
     });
 
     createSendToken(newUser, 201, res);

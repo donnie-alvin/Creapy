@@ -33,6 +33,26 @@ const userSchema = new mongoose.Schema(
       enum: ["tenant", "landlord"],
       default: "tenant",
     },
+    phoneNumber: {
+      type: String,
+      default: null,
+    },
+    nationalId: {
+      type: String,
+      default: null,
+    },
+    isEmailVerified: {
+      type: Boolean,
+      default: false,
+    },
+    emailVerificationToken: {
+      type: String,
+      default: null,
+    },
+    emailVerificationExpires: {
+      type: Date,
+      default: null,
+    },
     premiumExpiry: {
       type: Date,
       default: null,
@@ -58,6 +78,18 @@ userSchema.methods.correctPassword = async function (
   userPassword
 ) {
   return await bcrypt.compare(candidatePassword, userPassword);
+};
+
+userSchema.methods.backfillEmailVerificationStatus = async function () {
+  if (typeof this.isEmailVerified === "boolean") {
+    return this.isEmailVerified;
+  }
+
+  // Legacy users created before email verification existed had no token state.
+  this.isEmailVerified = !this.emailVerificationToken && !this.emailVerificationExpires;
+  await this.save({ validateBeforeSave: false });
+
+  return this.isEmailVerified;
 };
 
 const User = new mongoose.model("User", userSchema);

@@ -30,6 +30,14 @@ export const authApiSlice = apiSlice.injectEndpoints({
         };
       },
     }),
+    verifyEmail: builder.query({
+      query: (token) => {
+        return {
+          url: `users/verify-email?token=${encodeURIComponent(token)}`,
+          method: "GET",
+        };
+      },
+    }),
     googleLogin: builder.mutation({
       query: (data) => {
         return {
@@ -47,5 +55,9 @@ export const authApiSlice = apiSlice.injectEndpoints({
   }),
 });
 
-export const { useSignupMutation, useLoginMutation, useGoogleLoginMutation } =
-  authApiSlice;
+export const {
+  useSignupMutation,
+  useLoginMutation,
+  useVerifyEmailQuery,
+  useGoogleLoginMutation,
+} = authApiSlice;

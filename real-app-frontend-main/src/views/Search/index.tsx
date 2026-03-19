@@ -1,15 +1,19 @@
 // React Imports
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
 // MUI Imports
 import {
   Box,
+  Drawer,
+  Fab,
   Grid,
   RadioGroup,
   FormControlLabel,
   Radio,
   Checkbox,
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
 // Custom Imports
 import SearchBar from "../../components/SearchBar";
@@ -33,6 +37,7 @@ import {
 import { FaLocationDot } from "react-icons/fa6";
 import { FaBed } from "react-icons/fa";
 import { FaBath } from "react-icons/fa";
+import { IoFilter } from "react-icons/io5";
 // Utils Imports
 import { getApiBaseUrl, thousandSeparatorNumber } from "../../utils";
 
@@ -64,9 +69,254 @@ const sortTypes = [
   },
 ];
 
+type FilterFormProps = {
+  sideBarData: any;
+  setSideBarData: (data: any) => void;
+  handleSubmit: (e: any) => void;
+  isMobile: boolean;
+  searchText: string;
+  handleSearch: (e: any) => void;
+};
+
+const FilterForm = ({
+  sideBarData,
+  setSideBarData,
+  handleSubmit,
+  isMobile,
+  searchText,
+  handleSearch,
+}: FilterFormProps) => (
+  <Box>
+    <Heading sx={{ margin: "0 0 10px 0" }}>Filters</Heading>
+    <AppCard sx={{ p: { xs: 2, md: 2.5 } }}>
+      <form onSubmit={handleSubmit}>
+        <SubHeading sx={{ marginBottom: "8px" }}>Search</SubHeading>
+        <SearchBar
+          placeholder="Search..."
+          searchText={searchText}
+          handleSearch={handleSearch}
+          value={sideBarData.searchTerm}
+          onChange={handleSearch}
+          color="#fff"
+        />
+
+        <Box sx={{ marginTop: "10px" }}>
+          <SubHeading sx={{ marginBottom: "5px" }}>Province</SubHeading>
+          <AppSelect
+            options={[
+              { label: "All Provinces", value: "" },
+              ...ZIMBABWE_PROVINCES,
+            ]}
+            value={sideBarData.location}
+            onChange={(e) =>
+              setSideBarData({ ...sideBarData, location: e.target.value })
+            }
+            size="small"
+            displayEmpty
+            renderValue={(selected) => {
+              const province = selected as string;
+              return province || "All Provinces";
+            }}
+          />
+        </Box>
+
+        <Box sx={{ marginTop: "10px" }}>
+          <SubHeading sx={{ marginBottom: "5px" }}>Rent Range</SubHeading>
+          <Grid container spacing={1} sx={{ marginTop: "0px" }}>
+            <Grid item xs={6}>
+              <AppInput
+                value={sideBarData.minRent}
+                size="small"
+                onChange={(e) =>
+                  setSideBarData({ ...sideBarData, minRent: e.target.value })
+                }
+                placeholder="Min"
+                type="number"
+              />
+            </Grid>
+            <Grid item xs={6}>
+              <AppInput
+                value={sideBarData.maxRent}
+                size="small"
+                onChange={(e) =>
+                  setSideBarData({ ...sideBarData, maxRent: e.target.value })
+                }
+                placeholder="Max"
+                type="number"
+              />
+            </Grid>
+          </Grid>
+        </Box>
+
+        <Box sx={{ marginTop: "10px" }}>
+          <SubHeading sx={{ marginBottom: "5px" }}>Min Rooms</SubHeading>
+          <AppInput
+            value={sideBarData.minTotalRooms}
+            size="small"
+            onChange={(e) =>
+              setSideBarData({ ...sideBarData, minTotalRooms: e.target.value })
+            }
+            placeholder="e.g., 2"
+            type="number"
+          />
+        </Box>
+
+        <Box sx={{ marginTop: "10px" }}>
+          <SubHeading sx={{ marginBottom: "5px" }}>Amenities</SubHeading>
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={sideBarData.solar}
+                onChange={(e) =>
+                  setSideBarData({ ...sideBarData, solar: e.target.checked })
+                }
+              />
+            }
+            label="Solar"
+          />
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={sideBarData.borehole}
+                onChange={(e) =>
+                  setSideBarData({
+                    ...sideBarData,
+                    borehole: e.target.checked,
+                  })
+                }
+              />
+            }
+            label="Borehole"
+          />
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={sideBarData.security}
+                onChange={(e) =>
+                  setSideBarData({
+                    ...sideBarData,
+                    security: e.target.checked,
+                  })
+                }
+              />
+            }
+            label="Security"
+          />
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={sideBarData.internet}
+                onChange={(e) =>
+                  setSideBarData({ ...sideBarData, internet: e.target.checked })
+                }
+              />
+            }
+            label="Internet"
+          />
+        </Box>
+        <Box sx={{ marginTop: "10px" }}>
+          <RadioGroup
+            name="type"
+            value={sideBarData.type}
+            onChange={(event) => {
+              setSideBarData({
+                ...sideBarData,
+                type: event.target.value,
+              });
+            }}
+          >
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                flexWrap: "wrap",
+                gap: 1,
+              }}
+            >
+              <FormControlLabel value="all" control={<Radio />} label="All Listings" />
+              <FormControlLabel value="rent" control={<Radio />} label="Rent" />
+            </Box>
+          </RadioGroup>
+        </Box>
+        <Box sx={{ margin: "0 0 5px 0" }}>
+          <FormControlLabel
+            control={<Checkbox />}
+            label="Offer"
+            name="offer"
+            checked={sideBarData.offer}
+            onChange={() => {
+              setSideBarData({
+                ...sideBarData,
+                offer: !sideBarData.offer,
+              });
+            }}
+          />
+          <FormControlLabel
+            control={<Checkbox />}
+            label="Parking"
+            name="parking"
+            checked={sideBarData.parking}
+            onChange={() => {
+              setSideBarData({
+                ...sideBarData,
+                parking: !sideBarData.parking,
+              });
+            }}
+          />
+          <FormControlLabel
+            control={<Checkbox />}
+            label="Furnished"
+            name="furnished"
+            checked={sideBarData.furnished}
+            onChange={() => {
+              setSideBarData({
+                ...sideBarData,
+                furnished: !sideBarData.furnished,
+              });
+            }}
+          />
+          <FormControlLabel
+            control={<Checkbox />}
+            label="Student Accommodation"
+            name="studentAccommodation"
+            checked={sideBarData.studentAccommodation}
+            onChange={() => {
+              setSideBarData({
+                ...sideBarData,
+                studentAccommodation: !sideBarData.studentAccommodation,
+              });
+            }}
+          />
+        </Box>
+        <SubHeading sx={{ margin: "5px 0" }}>Sort</SubHeading>
+        <AppSelect
+          name="sort"
+          value={sideBarData.sort}
+          onChange={(event: any) => {
+            setSideBarData({
+              ...sideBarData,
+              sort: event.target.value,
+            });
+          }}
+          options={sortTypes.map((copyType) => ({
+            value: copyType.value,
+            label: copyType.name,
+          }))}
+        />
+        <AppButton sx={{ width: "100%", marginTop: "16px" }} type="submit">
+          {isMobile ? "Apply Filters" : "Search"}
+        </AppButton>
+      </form>
+    </AppCard>
+  </Box>
+);
+
 const SearchPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const dispatch = useDispatch();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const searchText = useTypedSelector(selectedSearchText);
   const token = JSON.parse(localStorage.getItem("user") || "null")?.token;
   const apiBase = getApiBaseUrl();
@@ -93,7 +343,8 @@ const SearchPage = () => {
   const [loading, setLoading] = useState(false);
   const [listings, setListings] = useState<any>([]);
   const [showMore, setShowMore] = useState(false);
-  const locationSearch = window.location.search;
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(true);
+  const locationSearch = location.search;
 
   const normalizeType = (value: string | null) => {
     if (value === "rent" || value === "all") {
@@ -142,6 +393,18 @@ const SearchPage = () => {
     setSideBarData({ ...sideBarData, searchTerm: value });
     dispatch(setSearchText(value));
   };
+
+  useEffect(() => {
+    if (!isMobile) {
+      setMobileFiltersOpen(false);
+      return;
+    }
+
+    const urlParams = new URLSearchParams(locationSearch);
+    // On a first mobile visit with no filters applied, open the drawer so
+    // users start in filter-selection mode before narrowing results.
+    setMobileFiltersOpen(!hasAnySupportedFilterParam(urlParams));
+  }, [isMobile, locationSearch]);
 
   useEffect(() => {
     const urlParams = new URLSearchParams(locationSearch);
@@ -228,6 +491,9 @@ const SearchPage = () => {
     urlParams.set("internet", sideBarData.internet);
     const searchQuery = urlParams.toString();
     navigate(`/search?${searchQuery}`);
+    if (isMobile) {
+      setMobileFiltersOpen(false);
+    }
   };
 
   const onShowMoreClick = async () => {
@@ -264,231 +530,18 @@ const SearchPage = () => {
         </Box>
       )}
       <Grid container spacing={3}>
-        <Grid item xs={12} md={4} lg={3}>
-          <Heading sx={{ margin: "0 0 10px 0" }}>Filters</Heading>
-          <AppCard sx={{ p: { xs: 2, md: 2.5 } }}>
-            <form onSubmit={handleSubmit}>
-              <SubHeading sx={{ marginBottom: "8px" }}>Search</SubHeading>
-              <SearchBar
-                placeholder="Search..."
-                searchText={searchText}
-                handleSearch={handleSearch}
-                value={sideBarData.searchTerm}
-                onChange={handleSearch}
-                color="#fff"
-              />
-
-              <Box sx={{ marginTop: "10px" }}>
-                <SubHeading sx={{ marginBottom: "5px" }}>Province</SubHeading>
-                <AppSelect
-                  options={[
-                    { label: "All Provinces", value: "" },
-                    ...ZIMBABWE_PROVINCES,
-                  ]}
-                  value={sideBarData.location}
-                  onChange={(e) =>
-                    setSideBarData({ ...sideBarData, location: e.target.value })
-                  }
-                  size="small"
-                  displayEmpty
-                  renderValue={(selected) => {
-                    const province = selected as string;
-                    return province || "All Provinces";
-                  }}
-                />
-              </Box>
-
-              <Box sx={{ marginTop: "10px" }}>
-                <SubHeading sx={{ marginBottom: "5px" }}>Rent Range</SubHeading>
-                <Grid container spacing={1} sx={{ marginTop: "0px" }}>
-                  <Grid item xs={6}>
-                    <AppInput
-                      value={sideBarData.minRent}
-                      size="small"
-                      onChange={(e) =>
-                        setSideBarData({ ...sideBarData, minRent: e.target.value })
-                      }
-                      placeholder="Min"
-                      type="number"
-                    />
-                  </Grid>
-                  <Grid item xs={6}>
-                    <AppInput
-                      value={sideBarData.maxRent}
-                      size="small"
-                      onChange={(e) =>
-                        setSideBarData({ ...sideBarData, maxRent: e.target.value })
-                      }
-                      placeholder="Max"
-                      type="number"
-                    />
-                  </Grid>
-                </Grid>
-              </Box>
-
-              <Box sx={{ marginTop: "10px" }}>
-                <SubHeading sx={{ marginBottom: "5px" }}>Min Rooms</SubHeading>
-                <AppInput
-                  value={sideBarData.minTotalRooms}
-                  size="small"
-                  onChange={(e) =>
-                    setSideBarData({ ...sideBarData, minTotalRooms: e.target.value })
-                  }
-                  placeholder="e.g., 2"
-                  type="number"
-                />
-              </Box>
-
-              <Box sx={{ marginTop: "10px" }}>
-                <SubHeading sx={{ marginBottom: "5px" }}>Amenities</SubHeading>
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={sideBarData.solar}
-                      onChange={(e) =>
-                        setSideBarData({ ...sideBarData, solar: e.target.checked })
-                      }
-                    />
-                  }
-                  label="Solar"
-                />
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={sideBarData.borehole}
-                      onChange={(e) =>
-                        setSideBarData({ ...sideBarData, borehole: e.target.checked })
-                      }
-                    />
-                  }
-                  label="Borehole"
-                />
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={sideBarData.security}
-                      onChange={(e) =>
-                        setSideBarData({ ...sideBarData, security: e.target.checked })
-                      }
-                    />
-                  }
-                  label="Security"
-                />
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={sideBarData.internet}
-                      onChange={(e) =>
-                        setSideBarData({ ...sideBarData, internet: e.target.checked })
-                      }
-                    />
-                  }
-                  label="Internet"
-                />
-              </Box>
-              <Box sx={{ marginTop: "10px" }}>
-                <RadioGroup
-                  name="type"
-                  value={sideBarData.type}
-                  onChange={(event) => {
-                    setSideBarData({
-                      ...sideBarData,
-                      type: event.target.value,
-                    });
-                  }}
-                >
-                  <Box
-                    sx={{
-                      display: "flex",
-                      alignItems: "center",
-                      flexWrap: "wrap",
-                      gap: 1,
-                    }}
-                  >
-                    <FormControlLabel
-                      value="all"
-                      control={<Radio />}
-                      label="All Listings"
-                    />
-                    <FormControlLabel
-                      value="rent"
-                      control={<Radio />}
-                      label="Rent"
-                    />
-                  </Box>
-                </RadioGroup>
-              </Box>
-              <Box sx={{ margin: "0 0 5px 0" }}>
-                <FormControlLabel
-                  control={<Checkbox />}
-                  label="Offer"
-                  name="offer"
-                  checked={sideBarData.offer}
-                  onChange={() => {
-                    setSideBarData({
-                      ...sideBarData,
-                      offer: !sideBarData.offer,
-                    });
-                  }}
-                />
-                <FormControlLabel
-                  control={<Checkbox />}
-                  label="Parking"
-                  name="parking"
-                  checked={sideBarData.parking}
-                  onChange={() => {
-                    setSideBarData({
-                      ...sideBarData,
-                      parking: !sideBarData.parking,
-                    });
-                  }}
-                />
-                <FormControlLabel
-                  control={<Checkbox />}
-                  label="Furnished"
-                  name="furnished"
-                  checked={sideBarData.furnished}
-                  onChange={() => {
-                    setSideBarData({
-                      ...sideBarData,
-                      furnished: !sideBarData.furnished,
-                    });
-                  }}
-                />
-                <FormControlLabel
-                  control={<Checkbox />}
-                  label="Student Accommodation"
-                  name="studentAccommodation"
-                  checked={sideBarData.studentAccommodation}
-                  onChange={() => {
-                    setSideBarData({
-                      ...sideBarData,
-                      studentAccommodation: !sideBarData.studentAccommodation,
-                    });
-                  }}
-                />
-              </Box>
-              <SubHeading sx={{ margin: "5px 0" }}>Sort</SubHeading>
-              <AppSelect
-                name="sort"
-                value={sideBarData.sort}
-                onChange={(event: any) => {
-                  setSideBarData({
-                    ...sideBarData,
-                    sort: event.target.value,
-                  });
-                }}
-                options={sortTypes.map((copyType) => ({
-                  value: copyType.value,
-                  label: copyType.name,
-                }))}
-              />
-              <AppButton sx={{ width: "100%", marginTop: "16px" }} type="submit">
-                Search
-              </AppButton>
-            </form>
-          </AppCard>
-        </Grid>
+        {!isMobile && (
+          <Grid item xs={12} md={4} lg={3}>
+            <FilterForm
+              sideBarData={sideBarData}
+              setSideBarData={setSideBarData}
+              handleSubmit={handleSubmit}
+              isMobile={isMobile}
+              searchText={searchText}
+              handleSearch={handleSearch}
+            />
+          </Grid>
+        )}
         <Grid item xs={12} md={8} lg={9}>
           <Box>
             <Heading sx={{ margin: "0 0 5px 0" }}>Listing Results</Heading>
@@ -661,6 +714,59 @@ const SearchPage = () => {
           </Box>
         </Grid>
       </Grid>
+      {isMobile && (
+        <>
+          <Drawer
+            anchor="bottom"
+            open={mobileFiltersOpen}
+            onClose={() => setMobileFiltersOpen(false)}
+            PaperProps={{
+              sx: {
+                borderRadius: "20px 20px 0 0",
+                padding: 2,
+                maxHeight: "85vh",
+              },
+            }}
+          >
+            <Box
+              sx={{
+                width: 48,
+                height: 4,
+                borderRadius: "999px",
+                background: "#cbd5e1",
+                margin: "0 auto 16px",
+              }}
+            />
+            <FilterForm
+              sideBarData={sideBarData}
+              setSideBarData={setSideBarData}
+              handleSubmit={handleSubmit}
+              isMobile={isMobile}
+              searchText={searchText}
+              handleSearch={handleSearch}
+            />
+          </Drawer>
+          {!mobileFiltersOpen && (
+            <Fab
+              variant="extended"
+              onClick={() => setMobileFiltersOpen(true)}
+              sx={{
+                position: "fixed",
+                bottom: 24,
+                right: 20,
+                background: "#1F4D3A",
+                color: "#fff",
+                "&:hover": {
+                  background: "#183d2f",
+                },
+              }}
+            >
+              <IoFilter style={{ marginRight: 8 }} />
+              Filters
+            </Fab>
+          )}
+        </>
+      )}
       </AppContainer>
     </Box>
   );

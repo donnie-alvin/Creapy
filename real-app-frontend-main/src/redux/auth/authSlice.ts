@@ -29,6 +29,8 @@ export default authSlice.reducer;
 
 export const selectedUserId = (state: RootState) =>
   state.auth?.user?.data?.user?._id;
+export const selectedUserToken = (state: RootState) =>
+  state.auth?.user?.token;
 export const selectedUserName = (state: RootState) =>
   state.auth?.user?.data?.user?.username;
 export const selectedUserEmail = (state: RootState) =>

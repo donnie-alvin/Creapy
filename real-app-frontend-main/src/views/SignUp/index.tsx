@@ -1,9 +1,8 @@
 // React Imports
 import { useState } from "react";
-import { useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
 // MUI Imports
-import { Box, FormControlLabel, Grid, Radio, RadioGroup } from "@mui/material";
+import { Box, Chip, FormControlLabel, Grid, Radio, RadioGroup } from "@mui/material";
 // React Icons
 import { AiOutlineEyeInvisible, AiOutlineEye } from "react-icons/ai";
 // Formik Imports
@@ -12,7 +11,6 @@ import { Form, Formik, FormikProps } from "formik";
 import { onKeyDown } from "../../utils";
 // Redux Imports
 import { useSignupMutation } from "../../redux/api/authApiSlice";
-import { setUser } from "../../redux/auth/authSlice";
 // Components Imports
 import DotLoader from "../../components/Spinner/dotLoader";
 import PrimaryInput from "../../components/PrimaryInput/PrimaryInput";
@@ -30,20 +28,24 @@ interface ISSignUpForm {
   email: string;
   password: string;
   role: "tenant" | "landlord";
+  phoneNumber: string;
+  nationalId: string;
 }
 
 const SignUp = () => {
-  const dispatch = useDispatch();
   const navigate = useNavigate();
 
   // states
   const [showPassword, setShowPassword] = useState(false);
+  const [pendingVerificationEmail, setPendingVerificationEmail] = useState("");
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [formValues, setFormValues] = useState<ISSignUpForm>({
     userName: "",
     email: "",
     password: "",
     role: "tenant",
+    phoneNumber: "",
+    nationalId: "",
   });
 
   const [toast, setToast] = useState({
@@ -79,30 +81,24 @@ const SignUp = () => {
       email: data.email,
       password: data.password,
       role: data.role,
+      phoneNumber: data.role === "landlord" ? data.phoneNumber : undefined,
+      nationalId: data.role === "landlord" ? data.nationalId : undefined,
     };
     try {
       const user: any = await signupUser(payload);
 
-      if (user?.data?.status) {
-        dispatch(setUser(user?.data));
-        localStorage.setItem("user", JSON.stringify(user?.data));
-        const role = user?.data?.data?.user?.role;
+      if (user?.data?.status === "pending_verification") {
+        setPendingVerificationEmail(data.email);
+        return;
+      }
 
+      if (user?.data?.status) {
         setToast({
           ...toast,
-          message: "User Successfully Created",
+          message: user?.data?.message || "Account created",
           appearence: true,
           type: "success",
         });
-        setTimeout(() => {
-          if (role === "landlord") {
-            navigate("/dashboard/landlord");
-          } else if (role === "tenant") {
-            navigate("/dashboard/tenant");
-          } else {
-            navigate("/");
-          }
-        }, 1500);
       }
       if (user?.error) {
         setToast({
@@ -129,23 +125,48 @@ const SignUp = () => {
         <Grid container spacing={2} justifyContent="center">
           <Grid item xs={12} md={6} lg={5}>
             <AppCard sx={{ p: { xs: 2.5, md: 3.5 } }}>
-              <Box
-                sx={{
-                  display: "flex",
-                  justifyContent: "center",
-                  alignItems: "center",
-                  flexDirection: "column",
-                  textAlign: "center",
-                }}
-              >
-                <Heading sx={{ fontSize: "32px", marginBottom: "6px" }}>
-                  Create your account
-                </Heading>
-                <SubHeading sx={{ color: "text.secondary" }}>
-                  Join to save listings and manage your profile.
-                </SubHeading>
-              </Box>
-              <Box sx={{ width: "100%", marginTop: "10px" }}>
+              {pendingVerificationEmail ? (
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    flexDirection: "column",
+                    textAlign: "center",
+                    py: 2,
+                    gap: 1.5,
+                  }}
+                >
+                  <Heading sx={{ fontSize: "32px", marginBottom: "6px" }}>
+                    Check your email
+                  </Heading>
+                  <SubHeading sx={{ color: "text.secondary", maxWidth: 360 }}>
+                    We sent a verification link to {pendingVerificationEmail}. Verify
+                    your email before logging in.
+                  </SubHeading>
+                  <AppButton sx={{ mt: 1 }} onClick={() => navigate("/login")}>
+                    Go to Login
+                  </AppButton>
+                </Box>
+              ) : (
+                <>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      justifyContent: "center",
+                      alignItems: "center",
+                      flexDirection: "column",
+                      textAlign: "center",
+                    }}
+                  >
+                    <Heading sx={{ fontSize: "32px", marginBottom: "6px" }}>
+                      Create your account
+                    </Heading>
+                    <SubHeading sx={{ color: "text.secondary" }}>
+                      Join to save listings and manage your profile.
+                    </SubHeading>
+                  </Box>
+                  <Box sx={{ width: "100%", marginTop: "10px" }}>
               <Formik
                 initialValues={formValues}
                 validate={(values: ISSignUpForm) => {
@@ -265,6 +286,75 @@ const SignUp = () => {
                           </Box>
                         )}
                       </Box>
+                      {values.role === "landlord" && (
+                        <Box
+                          sx={{
+                            marginTop: "12px",
+                            padding: "16px",
+                            border: "1px solid #e2e8f0",
+                            borderRadius: "14px",
+                            background: "#f8fafc",
+                          }}
+                        >
+                          <Box
+                            sx={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              gap: 1,
+                              flexWrap: "wrap",
+                              marginBottom: "10px",
+                            }}
+                          >
+                            <SubHeading>Landlord details</SubHeading>
+                            <Chip label="Landlord only" size="small" sx={{ background: "#fef3c7", color: "#92400e" }} />
+                          </Box>
+                          <Box sx={{ marginTop: "12px" }}>
+                            <SubHeading sx={{ marginBottom: "5px" }}>
+                              Phone Number
+                            </SubHeading>
+                            <PrimaryInput
+                              type="text"
+                              label=""
+                              name="phoneNumber"
+                              placeholder="+263 77 123 4567"
+                              value={values.phoneNumber}
+                              helperText={
+                                errors.phoneNumber && touched.phoneNumber
+                                  ? errors.phoneNumber
+                                  : ""
+                              }
+                              error={
+                                errors.phoneNumber && touched.phoneNumber ? true : false
+                              }
+                              onChange={handleChange}
+                              onBlur={handleBlur}
+                            />
+                          </Box>
+                          <Box sx={{ marginTop: "12px" }}>
+                            <SubHeading sx={{ marginBottom: "5px" }}>
+                              National ID Number
+                            </SubHeading>
+                            <PrimaryInput
+                              type="text"
+                              label=""
+                              name="nationalId"
+                              placeholder="e.g. 63-123456A78"
+                              value={values.nationalId}
+                              helperText={
+                                errors.nationalId && touched.nationalId
+                                  ? errors.nationalId
+                                  : ""
+                              }
+                              error={
+                                errors.nationalId && touched.nationalId ? true : false
+                              }
+                              onChange={handleChange}
+                              onBlur={handleBlur}
+                            />
+                          </Box>
+                        </Box>
+                      )}
                       <Box
                         sx={{
                           display: "flex",
@@ -316,7 +406,9 @@ const SignUp = () => {
                   );
                 }}
               </Formik>
-              </Box>
+                  </Box>
+                </>
+              )}
             </AppCard>
           </Grid>
         </Grid>

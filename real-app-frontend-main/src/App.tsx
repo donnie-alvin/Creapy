@@ -15,6 +15,7 @@ import SavedSearches from "./views/SavedSearches";
 import LandlordDashboard from "./views/Dashboard/Landlord";
 import TenantDashboard from "./views/Dashboard/Tenant";
 import ListingPayment from "./views/Dashboard/Payment";
+import VerifyEmail from "./views/VerifyEmail";
 
 function App() {
   return (
@@ -37,6 +38,7 @@ function App() {
             </PublicRoutes>
           }
         />
+        <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/" element={<Home />} />
         <Route path="/about" element={<About />} />
         <Route path="/search" element={<SearchPage />} />

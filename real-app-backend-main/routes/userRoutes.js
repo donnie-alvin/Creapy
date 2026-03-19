@@ -8,8 +8,9 @@ const router = express.Router();
 router.post("/signup", authController.signup);
 router.post("/login", authController.login);
 router.post("/google", authController.google); // ← Move this HERE, before protect middleware
+router.get("/verify-email", authController.verifyEmail);
 router.get("/me", authController.protect, authController.getMe);
-router.get("/:id", authController.getUser);
+router.get("/:id", authController.optionalAuth, authController.getUser);
 
 // PROTECTED ROUTES (Authentication required for all routes below this point)
 router.use(authController.protect);
