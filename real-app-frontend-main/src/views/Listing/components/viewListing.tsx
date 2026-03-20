@@ -53,7 +53,7 @@ const ViewListing = () => {
   const { data: userData, isLoading: isUserLoading } = useGetUserQuery(
     id as string,
     {
-      skip: !id,
+      skip: !id || !isLoggedIn,
     }
   );
 
@@ -69,7 +69,7 @@ const ViewListing = () => {
 
   return (
     <>
-      {(isLoading || isUserLoading) && <OverlayLoader />}
+      {(isLoading || (isLoggedIn && isUserLoading)) && <OverlayLoader />}
       <Box>
         <Swiper navigation={true}>
           {images?.map((image: any) => (
