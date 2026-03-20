@@ -1,5 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const jwt = require("jsonwebtoken");
 
 const emailUtils = require("../utils/email");
 const Listing = require("../models/listingModel");
@@ -222,4 +223,130 @@ test("login blocks legacy users whose verification state backfills to unverified
   assert.equal(user.isEmailVerified, false);
   assert.equal(result.error.statusCode, 403);
   assert.equal(result.error.message, "Please verify your email before logging in");
+});
+
+test("verifyEmail returns a login-shaped success response for valid tokens", async () => {
+  const authController = loadAuthController();
+  let queriedFilter = null;
+  let saveOptions = null;
+  const user = {
+    _id: "verified-user-1",
+    username: "verified-user",
+    email: "verified@example.com",
+    role: "tenant",
+    password: "hashed-password",
+    isEmailVerified: false,
+    emailVerificationToken: "stored-token",
+    emailVerificationExpires: new Date(Date.now() + 60_000),
+    async save(options) {
+      saveOptions = options;
+      return this;
+    },
+  };
+
+  User.findOne = async (filter) => {
+    queriedFilter = filter;
+    return user;
+  };
+
+  const result = await invokeController(authController.verifyEmail, {
+    query: { token: "raw-verification-token" },
+  });
+
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.body.status, "success");
+  assert.ok(result.body.token);
+  assert.ok(result.body.data.user);
+  assert.equal(result.body.data.user._id, "verified-user-1");
+  assert.equal(user.isEmailVerified, true);
+  assert.equal(user.emailVerificationToken, null);
+  assert.equal(user.emailVerificationExpires, null);
+  assert.deepEqual(saveOptions, { validateBeforeSave: false });
+  assert.ok(queriedFilter);
+  assert.ok(queriedFilter.emailVerificationToken);
+  assert.ok(queriedFilter.emailVerificationExpires.$gt instanceof Date);
+  assert.equal(jwt.verify(result.body.token, process.env.JWT_SECRET).id, "verified-user-1");
+});
+
+test("verifyEmail preserves invalid or expired token errors", async () => {
+  const authController = loadAuthController();
+
+  User.findOne = async () => null;
+
+  const result = await invokeController(authController.verifyEmail, {
+    query: { token: "expired-or-invalid-token" },
+  });
+
+  assert(result.error);
+  assert.equal(result.error.statusCode, 400);
+  assert.equal(result.error.message, "Verification link is invalid or has expired");
+});
+
+test("google marks existing unverified users as verified before issuing a token", async () => {
+  const authController = loadAuthController();
+  let saveOptions = null;
+  let saveCallCount = 0;
+  const user = {
+    _id: "google-user-1",
+    email: "google@example.com",
+    username: "existing-user",
+    role: "tenant",
+    password: "hashed-password",
+    isEmailVerified: undefined,
+    async save(options) {
+      saveCallCount += 1;
+      saveOptions = options;
+      return this;
+    },
+  };
+
+  User.findOne = async () => user;
+
+  const result = await invokeController(authController.google, {
+    body: {
+      name: "Existing User",
+      email: "google@example.com",
+      photo: "avatar.png",
+    },
+  });
+
+  assert.equal(result.statusCode, 200);
+  assert.equal(user.isEmailVerified, true);
+  assert.equal(saveCallCount, 1);
+  assert.deepEqual(saveOptions, { validateBeforeSave: false });
+  assert.ok(result.body.token);
+  assert.equal(result.body.data.user._id, "google-user-1");
+});
+
+test("google does not re-save existing users that are already verified", async () => {
+  const authController = loadAuthController();
+  let saveCallCount = 0;
+  const user = {
+    _id: "google-user-2",
+    email: "verified-google@example.com",
+    username: "verified-user",
+    role: "tenant",
+    password: "hashed-password",
+    isEmailVerified: true,
+    async save() {
+      saveCallCount += 1;
+      return this;
+    },
+  };
+
+  User.findOne = async () => user;
+
+  const result = await invokeController(authController.google, {
+    body: {
+      name: "Verified User",
+      email: "verified-google@example.com",
+      photo: "avatar.png",
+    },
+  });
+
+  assert.equal(result.statusCode, 200);
+  assert.equal(user.isEmailVerified, true);
+  assert.equal(saveCallCount, 0);
+  assert.ok(result.body.token);
+  assert.equal(result.body.data.user._id, "google-user-2");
 });

@@ -1,12 +1,16 @@
+import { useEffect } from "react";
 import { Box, CircularProgress } from "@mui/material";
+import { useDispatch } from "react-redux";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import AppButton from "../../components/ui/AppButton";
 import AppCard from "../../components/ui/AppCard";
 import AppContainer from "../../components/ui/AppContainer";
 import { Heading, SubHeading } from "../../components/Heading";
 import { useVerifyEmailQuery } from "../../redux/api/authApiSlice";
+import { setUser } from "../../redux/auth/authSlice";
 
 const VerifyEmail = () => {
+  const dispatch = useDispatch();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token") || "";
@@ -14,6 +18,21 @@ const VerifyEmail = () => {
   const { data, error, isLoading } = useVerifyEmailQuery(token, {
     skip: !token,
   });
+
+  useEffect(() => {
+    if (data?.status === "success" && data?.token) {
+      dispatch(setUser(data));
+      localStorage.setItem("user", JSON.stringify(data));
+      const role = data?.data?.user?.role;
+      if (role === "landlord") {
+        navigate("/dashboard/landlord");
+      } else if (role === "tenant") {
+        navigate("/dashboard/tenant");
+      } else {
+        navigate("/");
+      }
+    }
+  }, [data, dispatch, navigate]);
 
   const errorMessage =
     (error as any)?.data?.message ||

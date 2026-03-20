@@ -189,10 +189,7 @@ exports.verifyEmail = catchAsync(async (req, res, next) => {
   user.emailVerificationExpires = null;
   await user.save({ validateBeforeSave: false });
 
-  res.status(200).json({
-    status: "success",
-    message: "Email verified successfully. You can now log in.",
-  });
+  createSendToken(user, 200, res);
 });
 
 exports.getUser = catchAsync(async (req, res, next) => {
@@ -287,6 +284,10 @@ exports.google = catchAsync(async (req, res, next) => {
   const user = await User.findOne({ email });
 
   if (user) {
+    if (user.isEmailVerified !== true) {
+      user.isEmailVerified = true;
+      await user.save({ validateBeforeSave: false });
+    }
     // just return the user
     createSendToken(user, 200, res);
   } else {
