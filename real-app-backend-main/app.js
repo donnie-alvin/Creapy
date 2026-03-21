@@ -14,6 +14,7 @@ const webhookRouter = require("./routes/webhookRoutes");
 const { globalLimiter } = require("./middleware/rateLimiter");
 
 const listingRoutes = require("./routes/listingRoutes");
+const adminRouter = require("./routes/adminRoutes");
 
 const rawFrontendUrl = process.env.FRONTEND_URL || "";
 const corsOrigin = rawFrontendUrl
@@ -53,6 +54,7 @@ app.use("/api/v1/uploads", uploadRouter);
 app.use("/api/v1/listings", listingRoutes);
 // Backwards-compatible alias (older code may still call /api/listings)
 app.use("/api/listings", listingRoutes);
+app.use("/api/v1/admin", adminRouter);
 
 // PRODUCTION SETUP
 app.get("/", (req, res) => {
