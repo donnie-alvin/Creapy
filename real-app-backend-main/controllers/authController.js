@@ -113,6 +113,13 @@ exports.signup = catchAsync(async (req, res, next) => {
 
   await newUser.save();
 
+  if (process.env.SKIP_EMAIL_VERIFICATION === "true") {
+    newUser.isEmailVerified = true;
+    await newUser.save({ validateBeforeSave: false });
+    createSendToken(newUser, 201, res);
+    return;
+  }
+
   try {
     await sendVerificationEmail(newUser, verification.rawToken);
   } catch (error) {

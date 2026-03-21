@@ -11,7 +11,7 @@ import PrimaryInput from "../../components/PrimaryInput/PrimaryInput";
 import ToastAlert from "../../components/ToastAlert/ToastAlert";
 import DotLoader from "../../components/Spinner/dotLoader";
 // Utils Imports
-import { buildUploadSignUrl, onKeyDown } from "../../utils";
+import { onKeyDown } from "../../utils";
 // Hooks Imports
 import useTypedSelector from "../../hooks/useTypedSelector";
 // React Icons
@@ -24,12 +24,17 @@ import {
   useGetMeQuery,
 } from "../../redux/api/userApiSlice";
 import {
+  useGetR2SignedUrlMutation,
+  type R2SignedUrlData,
+} from "../../redux/api/uploadApiSlice";
+import {
   selectedUserAvatar,
   selectedUserName,
   selectedUserEmail,
   setUser,
   selectedUserId,
   selectedUserRole,
+  selectedUserToken,
 } from "../../redux/auth/authSlice";
 // MUI Imports
 import { Box, Grid, Tooltip } from "@mui/material";
@@ -59,8 +64,10 @@ const Profile = () => {
   const userAvatar = useTypedSelector(selectedUserAvatar);
   const userId = useTypedSelector(selectedUserId);
   const userRole = useTypedSelector(selectedUserRole);
+  const token = useTypedSelector(selectedUserToken);
   const authBlob = useTypedSelector((state: any) => state.auth?.user);
   const { data: meData } = useGetMeQuery(undefined, { skip: !userId });
+  const [getR2SignedUrl] = useGetR2SignedUrlMutation();
 
   // states
   const [file, setFile] = useState<File | null>(null);
@@ -88,20 +95,46 @@ const Profile = () => {
   }, [file]);
 
   const handleFileUpload = async (file: File) => {
-    try {
-      const token = JSON.parse(localStorage.getItem("user") || "null")?.token;
-
-      // signed url
-      const res = await fetch(buildUploadSignUrl(file.type, "avatars"), {
-        headers: { Authorization: `Bearer ${token}` },
+    if (!token) {
+      setToast({
+        ...toast,
+        message: "Session expired. Please log in again.",
+        appearence: true,
+        type: "error",
       });
+      navigate("/login");
+      return;
+    }
 
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.message || "Failed to get signed URL");
+    let result: R2SignedUrlData;
 
-      const { uploadUrl, publicUrl } = json.data;
+    try {
+      result = await getR2SignedUrl({
+        contentType: file.type,
+        folder: "avatars",
+      }).unwrap();
+    } catch (error: any) {
+      console.error(error);
 
-      // upload
+      if (error?.status === 401 || error?.originalStatus === 401) {
+        setToast({
+          ...toast,
+          message: "Session expired. Please log in again.",
+          appearence: true,
+          type: "error",
+        });
+        navigate("/login");
+        setFileUploadError(true);
+        return;
+      }
+
+      setFileUploadError(true);
+      return;
+    }
+
+    try {
+      const { uploadUrl, publicUrl } = result;
+
       const putRes = await fetch(uploadUrl, {
         method: "PUT",
         headers: { "Content-Type": file.type },
@@ -110,7 +143,6 @@ const Profile = () => {
 
       if (!putRes.ok) throw new Error("R2 upload failed");
 
-      // set avatar url like before
       setFormData({ ...formData, avatar: publicUrl });
       setFile(null);
       setFilePercentage(100);

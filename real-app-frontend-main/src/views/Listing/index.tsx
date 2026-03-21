@@ -1,5 +1,5 @@
 // React Imports
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { parsePhoneNumberFromString } from "libphonenumber-js";
 // Formik Imports
@@ -13,7 +13,7 @@ import {
   Radio,
 } from "@mui/material";
 // Utils Imports
-import { buildUploadSignUrl, onKeyDown } from "../../utils";
+import { onKeyDown } from "../../utils";
 // Redux Imports
 import {
   useCreateListingMutation,
@@ -21,8 +21,13 @@ import {
   useUpdateListingMutation,
 } from "../../redux/api/listingApiSlice";
 import {
+  useGetR2SignedUrlMutation,
+  type R2SignedUrlData,
+} from "../../redux/api/uploadApiSlice";
+import {
   selectedUserId,
   selectedUserRole,
+  selectedUserToken,
 } from "../../redux/auth/authSlice";
 // Hooks Imports
 import useTypedSelector from "../../hooks/useTypedSelector";
@@ -70,11 +75,32 @@ interface listingForm {
   files?: null | any[];
 }
 
+const LISTING_DRAFT_KEY = "listing_draft";
+const DRAFT_TTL_MS = 30 * 60 * 1000;
+
+const saveListingDraft = (formValues: listingForm) => {
+  const { files, ...form } = formValues;
+
+  sessionStorage.setItem(
+    LISTING_DRAFT_KEY,
+    JSON.stringify({
+      version: 1,
+      savedAt: new Date().toISOString(),
+      form,
+    })
+  );
+};
+
 const CreateListing = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const userId = useTypedSelector(selectedUserId);
   const userRole = useTypedSelector(selectedUserRole);
+  const token = useTypedSelector(selectedUserToken);
+  const [getR2SignedUrl] = useGetR2SignedUrlMutation();
+  const has401FiredRef = useRef(false);
+  const restoredDraftRef = useRef(false);
+  const shouldClearStaleDraftRef = useRef(false);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [formValues, setFormValues] = useState<listingForm>({
     name: "",
@@ -114,54 +140,83 @@ const CreateListing = () => {
     appearence: false,
     type: "",
   });
+  const [draftRestored, setDraftRestored] = useState(false);
 
   const handleCloseToast = () => {
     setToast({ ...toast, appearence: false });
   };
 
-  const UploadHandler = () => {
+  const UploadHandler = (currentFormValues: listingForm) => {
     if (listingImages.length === 0)
       return setImageError("Please select an image");
 
-    if (listingImages.length + imageUrls.length < 7) {
-      setImageLoading(true);
-      const promises = [];
-      for (let i = 0; i < listingImages.length; i++) {
-        promises.push(UploadImage(listingImages[i]));
-      }
-
-      Promise.all(promises)
-        .then((urls: any) => {
-          // add more urls to previous ones
-          setImageUrls([...imageUrls, ...urls]);
-          setImageError(false);
-          setImageLoading(false);
-        })
-        .catch((error) => {
-          console.log(error);
-          setImageError("Image Upload Failed (2 mb max per image)");
-          setImageLoading(false);
-        });
-    } else {
-      setImageError("You can upload only 6 images per listing");
+    if (listingImages.length + imageUrls.length >= 7) {
+      return setImageError("You can upload only 6 images per listing");
     }
+
+    if (!token) {
+      if (!id) {
+        saveListingDraft(currentFormValues);
+      }
+      setToast({
+        ...toast,
+        message: "Session expired. Please log in again.",
+        appearence: true,
+        type: "error",
+      });
+      navigate("/login");
+      return;
+    }
+
+    has401FiredRef.current = false;
+    setImageLoading(true);
+    const promises = [];
+    for (let i = 0; i < listingImages.length; i++) {
+      promises.push(UploadImage(listingImages[i], currentFormValues));
+    }
+
+    Promise.all(promises)
+      .then((urls: any) => {
+        setImageUrls([...imageUrls, ...urls]);
+        setImageError(false);
+        setImageLoading(false);
+      })
+      .catch((error) => {
+        console.log(error);
+        setImageError("Image Upload Failed (2 mb max per image)");
+        setImageLoading(false);
+      });
   };
 
-  const UploadImage = async (image: File) => {
-    // get token from auth blob (it exists)
-    const token = JSON.parse(localStorage.getItem("user") || "null")?.token;
+  const UploadImage = async (image: File, currentFormValues: listingForm) => {
+    let result: R2SignedUrlData;
 
-    // 1) Ask backend for signed URL
-    const res = await fetch(buildUploadSignUrl(image.type, "listings"), {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
+    try {
+      result = await getR2SignedUrl({
+        contentType: image.type,
+        folder: "listings",
+      }).unwrap();
+    } catch (error: any) {
+      const errorStatus = error?.status || error?.originalStatus;
 
-    const json = await res.json();
-    if (!res.ok) throw new Error(json?.message || "Failed to get signed URL");
+      if (errorStatus === 401 && !has401FiredRef.current) {
+        has401FiredRef.current = true;
+        if (!id) {
+          saveListingDraft(currentFormValues);
+        }
+        setToast({
+          ...toast,
+          message: "Session expired. Please log in again.",
+          appearence: true,
+          type: "error",
+        });
+        navigate("/login");
+      }
 
-    const { uploadUrl, publicUrl } = json.data;
+      throw error;
+    }
+
+    const { uploadUrl, publicUrl } = result;
 
     // 2) Upload directly to R2
     const putRes = await fetch(uploadUrl, {
@@ -172,7 +227,6 @@ const CreateListing = () => {
 
     if (!putRes.ok) throw new Error("R2 upload failed");
 
-    // 3) Return the public URL (same thing your DB already stores)
     return publicUrl as string;
   };
 
@@ -182,25 +236,8 @@ const CreateListing = () => {
   const [updateListing, { isLoading: updatingLoading }] =
     useUpdateListingMutation();
 
-  const resolveUserId = () => {
-    if (userId) return userId;
-    try {
-      const authBlob = JSON.parse(localStorage.getItem("user") || "null");
-      return (
-        authBlob?.data?.user?._id ||
-        authBlob?.user?._id ||
-        authBlob?._id ||
-        null
-      );
-    } catch (error) {
-      console.error("Failed to parse auth blob:", error);
-      return null;
-    }
-  };
-
   const listingHandler = async (data: listingForm) => {
-
-    const resolvedUserId = resolveUserId();
+    const resolvedUserId = userId;
 
     if (!resolvedUserId) {
       setToast({
@@ -265,6 +302,7 @@ const CreateListing = () => {
       if (id) {
         const updatedListing: any = await updateListing({ id, payload });
         if (updatedListing?.data?.status) {
+          sessionStorage.removeItem(LISTING_DRAFT_KEY);
           setToast({
             ...toast,
             message: "Listing Updated Successfully",
@@ -286,6 +324,7 @@ const CreateListing = () => {
       // Create Listing
       const listing: any = await createListing(payload);
       if (listing?.data?.status) {
+        sessionStorage.removeItem(LISTING_DRAFT_KEY);
         setToast({
           ...toast,
           message: "Listing Created Successfully",
@@ -379,6 +418,39 @@ const CreateListing = () => {
     }
   }, [listingData, listingSuccess]);
 
+  useEffect(() => {
+    if (id) return;
+
+    const storedDraft = sessionStorage.getItem(LISTING_DRAFT_KEY);
+
+    if (!storedDraft) {
+      return;
+    }
+
+    try {
+      const draft = JSON.parse(storedDraft);
+      const savedAt = new Date(draft?.savedAt).getTime();
+      const isValidDraft =
+        draft?.version === 1 && Date.now() - savedAt <= DRAFT_TTL_MS;
+
+      if (isValidDraft) {
+        setFormValues(draft.form);
+        restoredDraftRef.current = true;
+        setDraftRestored(true);
+      } else {
+        shouldClearStaleDraftRef.current = true;
+      }
+    } catch (error) {
+      shouldClearStaleDraftRef.current = true;
+    }
+
+    return () => {
+      if (shouldClearStaleDraftRef.current && !restoredDraftRef.current) {
+        sessionStorage.removeItem(LISTING_DRAFT_KEY);
+      }
+    };
+  }, [id]);
+
   return (
     <Box sx={{ mt: { xs: 5, md: 6 } }}>
       {listingLoading && <OverlayLoader />}
@@ -386,6 +458,33 @@ const CreateListing = () => {
         <Box sx={{ textAlign: "center" }}>
           <Heading>{id ? "Update" : "Create"} a Listing</Heading>
         </Box>
+        {!id && draftRestored && (
+          <Box
+            sx={{
+              mb: 2,
+              p: 2,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 2,
+              backgroundColor: "#f8fafc",
+              border: "1px solid #cbd5e1",
+              borderRadius: "10px",
+            }}
+          >
+            <Box>We restored your unsaved listing. Images must be re-uploaded.</Box>
+            <AppButton
+              variant="outlined"
+              color="inherit"
+              onClick={() => {
+                setDraftRestored(false);
+                sessionStorage.removeItem(LISTING_DRAFT_KEY);
+              }}
+            >
+              X
+            </AppButton>
+          </Box>
+        )}
         <AppCard sx={{ my: { xs: 3, md: 4 }, p: { xs: 2, md: 3 } }}>
           <Formik
             initialValues={formValues}
@@ -901,7 +1000,7 @@ const CreateListing = () => {
                                 textTransform: "capitalize",
                                 width: { xs: "100%", sm: "120px" },
                               }}
-                              onClick={UploadHandler}
+                              onClick={() => UploadHandler(values)}
                               disabled={imageLoading}
                             >
                               {imageLoading ? (

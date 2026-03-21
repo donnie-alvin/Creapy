@@ -1,5 +1,9 @@
 # Amplify Environment Variables Checklist
 
+> ⚠️ **IMPORTANT — Read before deploying**
+> The values for `REACT_APP_API_URL` and `REACT_APP_BACKEND_URL` in `.env.production` are **non-functional placeholder templates** (they contain `<amplify-backend-branch>` and `<appid>` tokens). They will **not** work unless overridden in the AWS Amplify Console. A production build without these overrides will silently use broken URLs, causing all API calls (including auth and upload) to fail.
+> **You must set these variables in the Amplify Console under App settings -> Environment variables before triggering any production build.**
+
 Amplify backend is the canonical production target. See `real-app-backend-main/DEPLOYMENT.md` for the full setup guide.
 
 Set these in AWS Amplify under **App settings -> Environment variables** before triggering a production build.

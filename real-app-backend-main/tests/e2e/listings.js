@@ -18,7 +18,16 @@ const listingPayload = {
   phoneNumber: '+263771234567',
   type: 'rent',
   offer: false,
-  location: 'TestCity',
+  location: {
+    province: 'TestCity',
+    city: 'TestCity',
+    addressLine: '123 Test Street',
+    country: 'Zimbabwe',
+    coordinates: {
+      lat: null,
+      lng: null,
+    },
+  },
 };
 
 async function run(state, api, assert, test) {
@@ -99,7 +108,14 @@ async function run(state, api, assert, test) {
     assert(body && Array.isArray(body.data), 'expected body.data array');
     if (body.data.length) {
       body.data.forEach((item) => {
-        assert(item.location && item.location.includes('TestCity'), 'location mismatch');
+        const locStr =
+          typeof item.location === 'string'
+            ? item.location.toLowerCase()
+            : [item.location?.province, item.location?.city, item.location?.addressLine]
+                .filter(Boolean)
+                .join(' ')
+                .toLowerCase();
+        assert(locStr.includes('testcity'), 'location mismatch');
       });
     }
   });
