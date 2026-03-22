@@ -15,6 +15,7 @@ import SavedSearches from "./views/SavedSearches";
 import LandlordDashboard from "./views/Dashboard/Landlord";
 import TenantDashboard from "./views/Dashboard/Tenant";
 import ListingPayment from "./views/Dashboard/Payment";
+import AdminDashboard from "./views/Dashboard/Admin";
 import VerifyEmail from "./views/VerifyEmail";
 
 function App() {
@@ -73,6 +74,14 @@ function App() {
           element={
             <ProtectedRoutes allowedRoles={["tenant"]}>
               <TenantDashboard />
+            </ProtectedRoutes>
+          }
+        />
+        <Route
+          path="/dashboard/admin"
+          element={
+            <ProtectedRoutes allowedRoles={["admin"]}>
+              <AdminDashboard />
             </ProtectedRoutes>
           }
         />

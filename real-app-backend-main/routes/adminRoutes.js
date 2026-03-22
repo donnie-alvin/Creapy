@@ -1,5 +1,6 @@
 const express = require("express");
 const authController = require("../controllers/authController");
+const adminController = require("../controllers/adminController");
 
 const router = express.Router();
 
@@ -8,6 +9,13 @@ router.use(
   authController.requireRole("admin")
 );
 
-// Future admin route handlers (T2) will be registered here.
+router.get(
+  "/listings/inactive",
+  adminController.getInactiveListings
+);
+router.post(
+  "/listings/bulk-revive",
+  adminController.bulkReviveListings
+);
 
 module.exports = router;
