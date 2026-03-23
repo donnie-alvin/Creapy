@@ -4,15 +4,13 @@ import { initializeApp } from "firebase/app";
 // https://firebase.google.com/docs/web/setup#available-libraries
 
 // Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
-  authDomain: "mern-real-estate-26a4e.firebaseapp.com",
-  projectId: "mern-real-estate-26a4e",
-  storageBucket: "mern-real-estate-26a4e.firebasestorage.app",
-  messagingSenderId: "108972766412",
-  appId: "1:108972766412:web:c75dc26378696a3ac8be69",
-  measurementId: "G-M089PX98LK",
+  authDomain: "real-app-storage.firebaseapp.com",
+  projectId: "real-app-storage",
+  storageBucket: "real-app-storage.firebasestorage.app",
+  messagingSenderId: "737656282141",
+  appId: "1:737656282141:web:3fd0cea5c7f1a4a765baf4",
 };
 
 // Initialize Firebase
