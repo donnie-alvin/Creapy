@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Box,
   Paper,
@@ -75,8 +75,16 @@ const AdminDashboard: React.FC = () => {
   const total = data?.total ?? 0;
   const totalPages = Math.ceil(total / ROWS_PER_PAGE);
   const currentPageIds = listings.map((l) => l._id);
-  const allCurrentPageSelected = currentPageIds.length > 0 && currentPageIds.every((id) => selectedIds[id] === true);
   const selectedCount = Object.keys(selectedIds).length;
+  const currentPageSelectedCount = currentPageIds.filter((id) => selectedIds[id] === true).length;
+  const allCurrentPageSelected = currentPageIds.length > 0 && currentPageSelectedCount === currentPageIds.length;
+  const someCurrentPageSelected = currentPageSelectedCount > 0 && !allCurrentPageSelected;
+
+  useEffect(() => {
+    if (selectedCount === 0 && showConfirm) {
+      setShowConfirm(false);
+    }
+  }, [selectedCount, showConfirm]);
 
   const handleFilterChange = (field: keyof FilterState, value: string | number) => {
     setFilters((prev) => ({ ...prev, [field]: value }));
@@ -92,7 +100,6 @@ const AdminDashboard: React.FC = () => {
 
   const handlePageChange = (newPage: number) => {
     setFilters((prev) => ({ ...prev, page: newPage }));
-    setSelectedIds({});
     triggerSearch({ ...filters, page: newPage, limit: ROWS_PER_PAGE });
   };
 
@@ -133,6 +140,11 @@ const AdminDashboard: React.FC = () => {
   };
 
   const handleConfirmRevive = async () => {
+    if (selectedCount === 0) {
+      setShowConfirm(false);
+      return;
+    }
+
     try {
       // Build id → name lookup map from current listings
       const idNameMap: Record<string, string> = {};
@@ -271,7 +283,7 @@ const AdminDashboard: React.FC = () => {
                 <Typography variant="body2" sx={{ flex: 1, color: "#92400e" }}>
                   Revive {selectedCount} listing{selectedCount !== 1 ? "s" : ""}? Each landlord will receive a 48-hour payment window and an email notification.
                 </Typography>
-                <AppButton size="small" onClick={handleConfirmRevive} disabled={isReviving}>
+                <AppButton size="small" onClick={handleConfirmRevive} disabled={selectedCount === 0 || isReviving}>
                   {isReviving ? <CircularProgress size={16} color="inherit" /> : "Confirm"}
                 </AppButton>
                 <AppButton size="small" variant="outlined" onClick={handleCancelRevive} disabled={isReviving}>
@@ -311,7 +323,7 @@ const AdminDashboard: React.FC = () => {
                   <TableCell padding="checkbox">
                     <Checkbox
                       checked={allCurrentPageSelected}
-                      indeterminate={selectedCount > 0 && !allCurrentPageSelected}
+                      indeterminate={someCurrentPageSelected}
                       onChange={handleSelectAll}
                       disabled={isReviving}
                     />
