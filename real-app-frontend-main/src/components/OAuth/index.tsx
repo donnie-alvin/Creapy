@@ -38,11 +38,13 @@ const GoogleOAuth = () => {
       const role = user?.data?.data?.user?.role;
       if (role === "landlord") {
         navigate("/dashboard/landlord");
-      } else if (role === "tenant") {
-        navigate("/dashboard/tenant");
-      } else {
-        navigate("/");
-      }
+        } else if (role === "tenant") {
+          navigate("/dashboard/tenant");
+        } else if (role === "admin") {
+          navigate("/dashboard/admin");
+        } else {
+          navigate("/");
+        }
     } catch (error) {
       console.error("Google GoogleOAuth Error: ", error);
     }

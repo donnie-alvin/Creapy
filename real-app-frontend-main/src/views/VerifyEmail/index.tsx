@@ -26,11 +26,13 @@ const VerifyEmail = () => {
       const role = data?.data?.user?.role;
       if (role === "landlord") {
         navigate("/dashboard/landlord");
-      } else if (role === "tenant") {
-        navigate("/dashboard/tenant");
-      } else {
-        navigate("/");
-      }
+          } else if (role === "tenant") {
+            navigate("/dashboard/tenant");
+          } else if (role === "admin") {
+            navigate("/dashboard/admin");
+          } else {
+            navigate("/");
+          }
     }
   }, [data, dispatch, navigate]);
 
