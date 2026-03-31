@@ -75,6 +75,8 @@ const Login = () => {
           navigate("/dashboard/landlord");
         } else if (role === "tenant") {
           navigate("/dashboard/tenant");
+        } else if (role === "admin") {
+          navigate("/dashboard/admin");
         } else {
           navigate("/");
         }

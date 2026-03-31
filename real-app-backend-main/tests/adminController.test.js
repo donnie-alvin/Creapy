@@ -288,3 +288,29 @@ test("bulkReviveListings revives inactive listings, ignores email failure, and r
   assert.deepEqual(savedIds, ["507f1f77bcf86cd799439011"]);
   assert.deepEqual(emailedIds, ["owner1@example.com"]);
 });
+
+test("bulkReviveListings rejects oversized batches", async () => {
+  const adminController = loadAdminController();
+
+  let findByIdCalls = 0;
+  Listing.findById = () => {
+    findByIdCalls += 1;
+    return {
+      populate: async () => null,
+    };
+  };
+
+  const result = await invokeController(adminController.bulkReviveListings, {
+    body: {
+      ids: Array.from({ length: 101 }, (_, index) => String(index + 1)),
+    },
+  });
+
+  assert.ok(result.error);
+  assert.equal(result.error.statusCode, 400);
+  assert.equal(
+    result.error.message,
+    "ids must contain at most 100 listings per request"
+  );
+  assert.equal(findByIdCalls, 0);
+});

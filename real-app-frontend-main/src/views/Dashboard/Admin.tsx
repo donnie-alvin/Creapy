@@ -41,13 +41,39 @@ interface ToastState {
   type: "success" | "error" | "warning";
 }
 
-// Helper to build numeric range array without Array.from (ES5 safe)
-function buildPageArray(count: number): number[] {
+type PaginationItem = number | "ellipsis-start" | "ellipsis-end";
+
+function buildPageArray(totalPages: number, currentPage: number): PaginationItem[] {
   const pages: number[] = [];
-  for (let i = 1; i <= count; i++) {
-    pages.push(i);
+  const addPage = (page: number) => {
+    if (page >= 1 && page <= totalPages && pages.indexOf(page) === -1) {
+      pages.push(page);
+    }
+  };
+
+  addPage(1);
+
+  for (let page = currentPage - 2; page <= currentPage + 2; page += 1) {
+    addPage(page);
   }
-  return pages;
+
+  addPage(totalPages);
+  pages.sort((left, right) => left - right);
+
+  const items: PaginationItem[] = [];
+
+  for (let index = 0; index < pages.length; index += 1) {
+    const page = pages[index];
+    const previousPage = index > 0 ? pages[index - 1] : null;
+
+    if (previousPage !== null && page - previousPage > 1) {
+      items.push(previousPage === 1 ? "ellipsis-start" : "ellipsis-end");
+    }
+
+    items.push(page);
+  }
+
+  return items;
 }
 
 const AdminDashboard: React.FC = () => {
@@ -74,6 +100,7 @@ const AdminDashboard: React.FC = () => {
   const listings = data?.data ?? [];
   const total = data?.total ?? 0;
   const totalPages = Math.ceil(total / ROWS_PER_PAGE);
+  const paginationItems = buildPageArray(totalPages, filters.page);
   const currentPageIds = listings.map((l) => l._id);
   const selectedCount = Object.keys(selectedIds).length;
   const currentPageSelectedCount = currentPageIds.filter((id) => selectedIds[id] === true).length;
@@ -368,17 +395,27 @@ const AdminDashboard: React.FC = () => {
 
         {hasSearched && !isFetching && totalPages > 1 && (
           <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1, mt: 1.5 }}>
-            {buildPageArray(totalPages).map((p) => (
-              <AppButton
-                key={p}
-                size="small"
-                variant={filters.page === p ? "contained" : "outlined"}
-                onClick={() => handlePageChange(p)}
-                disabled={isReviving}
-              >
-                {p}
-              </AppButton>
-            ))}
+            {paginationItems.map((item, index) =>
+              typeof item !== "number" ? (
+                <Typography
+                  key={item}
+                  variant="body2"
+                  sx={{ display: "flex", alignItems: "center", px: 0.5, color: "#9ca3af" }}
+                >
+                  ...
+                </Typography>
+              ) : (
+                <AppButton
+                  key={item}
+                  size="small"
+                  variant={filters.page === item ? "contained" : "outlined"}
+                  onClick={() => handlePageChange(item)}
+                  disabled={isReviving}
+                >
+                  {item}
+                </AppButton>
+              )
+            )}
           </Box>
         )}
       </AppContainer>

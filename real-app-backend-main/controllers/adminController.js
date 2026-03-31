@@ -5,6 +5,8 @@ const User = require("../models/userModel");
 const AppError = require("../utils/appError");
 const emailUtils = require("../utils/email");
 
+const MAX_BULK_REVIVE_IDS = 100;
+
 // Escape user-provided text before interpolating into regex filters.
 function escapeRegex(string) {
   return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -144,6 +146,9 @@ exports.bulkReviveListings = catchAsync(async (req, res, next) => {
 
   if (!Array.isArray(ids) || !ids.length) {
     return next(new AppError("ids must be a non-empty array", 400));
+  }
+  if (ids.length > MAX_BULK_REVIVE_IDS) {
+    return next(new AppError("Cannot revive more than 100 listings at once", 400));
   }
 
   const normalizedIds = ids.map((value) =>

@@ -75,7 +75,6 @@ export const adminApiSlice = apiSlice.injectEndpoints({
           body: { ids },
         };
       },
-      invalidatesTags: ["AdminListing"],
     }),
   }),
 });
