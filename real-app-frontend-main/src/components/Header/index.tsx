@@ -214,6 +214,8 @@ const Header = () => {
                         navigate("/dashboard/landlord");
                       } else if (userRole === "tenant") {
                         navigate("/dashboard/tenant");
+                      } else if (userRole === "admin") {
+                        navigate("/dashboard/admin");
                       } else {
                         navigate("/");
                       }
@@ -370,6 +372,8 @@ const Header = () => {
                     navigate("/dashboard/landlord");
                   } else if (userRole === "tenant") {
                     navigate("/dashboard/tenant");
+                  } else if (userRole === "admin") {
+                    navigate("/dashboard/admin");
                   } else {
                     navigate("/");
                   }

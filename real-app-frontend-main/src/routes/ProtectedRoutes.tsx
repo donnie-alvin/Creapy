@@ -11,6 +11,14 @@ interface ProtectedRoutesProps {
 const ProtectedRoutes = ({ allowedRoles, children }: ProtectedRoutesProps) => {
   const authUser = useTypedSelector((state) => state.auth?.user);
   const role = useTypedSelector(selectedUserRole);
+  const destination =
+    role === "admin"
+      ? "/dashboard/admin"
+      : role === "landlord"
+        ? "/dashboard/landlord"
+        : role === "tenant"
+          ? "/dashboard/tenant"
+          : "/";
 
   if (!authUser) {
     return <Navigate to="/login" replace />;
@@ -24,7 +32,7 @@ const ProtectedRoutes = ({ allowedRoles, children }: ProtectedRoutesProps) => {
     return <>{children}</>;
   }
 
-  return <Navigate to="/" replace />;
+  return <Navigate to={destination} replace />;
 };
 
 export default ProtectedRoutes;
