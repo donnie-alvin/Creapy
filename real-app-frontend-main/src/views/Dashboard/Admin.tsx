@@ -43,6 +43,31 @@ interface ToastState {
 
 type PaginationItem = number | "ellipsis-start" | "ellipsis-end";
 
+const MAX_BULK_REVIVE_IDS = 100;
+
+function getBulkReviveLimitMessage() {
+  return `You can revive up to ${MAX_BULK_REVIVE_IDS} listings at once. Split your selection into smaller batches.`;
+}
+
+function getErrorMessage(error: unknown) {
+  if (typeof error === "object" && error !== null) {
+    const errorWithData = error as {
+      data?: { message?: string };
+      message?: string;
+    };
+
+    if (errorWithData.data?.message) {
+      return errorWithData.data.message;
+    }
+
+    if (errorWithData.message) {
+      return errorWithData.message;
+    }
+  }
+
+  return "An error occurred during revival.";
+}
+
 function buildPageArray(totalPages: number, currentPage: number): PaginationItem[] {
   const pages: number[] = [];
   const addPage = (page: number) => {
@@ -159,6 +184,16 @@ const AdminDashboard: React.FC = () => {
   };
 
   const handleReviveClick = () => {
+    if (selectedCount > MAX_BULK_REVIVE_IDS) {
+      setToast({
+        open: true,
+        message: getBulkReviveLimitMessage(),
+        type: "error",
+      });
+      setShowConfirm(false);
+      return;
+    }
+
     setShowConfirm(true);
   };
 
@@ -168,6 +203,16 @@ const AdminDashboard: React.FC = () => {
 
   const handleConfirmRevive = async () => {
     if (selectedCount === 0) {
+      setShowConfirm(false);
+      return;
+    }
+
+    if (selectedCount > MAX_BULK_REVIVE_IDS) {
+      setToast({
+        open: true,
+        message: getBulkReviveLimitMessage(),
+        type: "error",
+      });
       setShowConfirm(false);
       return;
     }
@@ -211,7 +256,7 @@ const AdminDashboard: React.FC = () => {
       setShowConfirm(false);
       triggerSearch({ ...filters, page: filters.page, limit: ROWS_PER_PAGE });
     } catch (error) {
-      setToast({ open: true, message: "An error occurred during revival.", type: "error" });
+      setToast({ open: true, message: getErrorMessage(error), type: "error" });
     }
   };
 
