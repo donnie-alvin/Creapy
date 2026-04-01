@@ -116,6 +116,49 @@ const paynowProvider = {
   },
 
   /**
+   * Initiates a Paynow booking payment
+   * @param {object} booking - Booking model
+   * @param {object} guest - Guest user
+   * @returns {object} Payment initiation response
+   */
+  initiateBookingPayment: async (booking, guest) => {
+    const amount = Number.parseFloat(booking?.totalPrice ?? booking?.amount);
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new AppError("Invalid booking payment amount", 400);
+    }
+
+    validatePayerContact("guest", guest);
+    const phone = guest.phone;
+
+    try {
+      const payment = paynow.createPayment(
+        `booking-${booking._id}`,
+        guest.email
+      );
+
+      payment.add("Stay Booking Payment", amount);
+
+      const response = await paynow.sendMobile(payment, phone, "ecocash");
+
+      if (!response.success) {
+        throw new AppError(response.error || "Failed to initiate Paynow payment", 502);
+      }
+
+      return {
+        transactionRef: response.reference,
+        instructions: response.instructions,
+      };
+    } catch (error) {
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      throw new AppError(error.message || "Paynow payment initiation error", 502);
+    }
+  },
+
+  /**
    * Verifies a Paynow webhook/payment status
    * Checks webhook signature and validates payment completion
    * @param {object} formFields - Webhook payload or payment status data

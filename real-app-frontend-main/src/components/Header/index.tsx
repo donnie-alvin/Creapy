@@ -204,6 +204,9 @@ const Header = () => {
               <Box sx={menuStyle} onClick={() => navigate("/search")}>
                 Properties
               </Box>
+              <Box sx={menuStyle} onClick={() => navigate("/stays")}>
+                Temporary Stays
+              </Box>
 
               {avatar ? (
                 <>
@@ -362,6 +365,14 @@ const Header = () => {
             }}
           >
             <ListItemText primary="Search / Properties" />
+          </ListItemButton>
+          <ListItemButton
+            onClick={() => {
+              navigate("/stays");
+              setMobileOpen(false);
+            }}
+          >
+            <ListItemText primary="Temporary Stays" />
           </ListItemButton>
 
           {avatar ? (

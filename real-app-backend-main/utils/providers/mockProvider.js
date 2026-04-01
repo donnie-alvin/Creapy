@@ -36,6 +36,19 @@ const mockProvider = {
   },
 
   /**
+   * Initiates a mock booking payment
+   * @param {object} booking - Booking model
+   * @param {object} guest - Guest user
+   * @returns {object} Payment initiation response
+   */
+  initiateBookingPayment: async (booking, guest) => {
+    return {
+      transactionRef: `mock-booking-${booking._id}`,
+      instructions: "Mock booking payment",
+    };
+  },
+
+  /**
    * Verifies a mock webhook (always succeeds for testing)
    * @param {object} formFields - Webhook payload
    * @returns {object} Webhook verification response

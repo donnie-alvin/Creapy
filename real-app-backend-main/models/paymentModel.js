@@ -23,12 +23,17 @@ const paymentSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ["listing_fee", "premium_subscription"],
+      enum: ["listing_fee", "premium_subscription", "booking_payment"],
       required: true,
     },
     listing: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Listing",
+      default: null,
+    },
+    booking: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Booking",
       default: null,
     },
     transactionRef: {

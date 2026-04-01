@@ -11,10 +11,14 @@ const savedSearchRouter = require("./routes/savedSearchRoutes");
 const paymentRouter = require("./routes/paymentRoutes");
 const uploadRouter = require("./routes/uploadRoutes");
 const webhookRouter = require("./routes/webhookRoutes");
+const roomRouter = require("./routes/roomRoutes");
+const providerRouter = require("./routes/providerRoutes");
+const stayRouter = require("./routes/stayRoutes");
 const { globalLimiter } = require("./middleware/rateLimiter");
 
 const listingRoutes = require("./routes/listingRoutes");
 const adminRouter = require("./routes/adminRoutes");
+const bookingRouter = require("./routes/bookingRoutes");
 
 const rawFrontendUrl = process.env.FRONTEND_URL || "";
 const corsOrigin = rawFrontendUrl
@@ -49,12 +53,16 @@ app.use("/api/v1/users", userRouter);
 app.use("/api/v1/saved-searches", savedSearchRouter);
 app.use("/api/v1/payments", paymentRouter);
 app.use("/api/v1/uploads", uploadRouter);
+app.use("/api/v1/rooms", roomRouter);
+app.use("/api/v1/providers", providerRouter);
 // Listings routes
 // Primary (matches client + SRS)
 app.use("/api/v1/listings", listingRoutes);
 // Backwards-compatible alias (older code may still call /api/listings)
 app.use("/api/listings", listingRoutes);
 app.use("/api/v1/admin", adminRouter);
+app.use("/api/v1/bookings", bookingRouter);
+app.use("/api/v1/stays", stayRouter);
 
 // PRODUCTION SETUP
 app.get("/", (req, res) => {

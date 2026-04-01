@@ -279,6 +279,8 @@ function buildLandlordSeedUsers() {
     email: index === 0 ? 'landlord@demo.com' : `landlord${index + 1}@demo.com`,
     password: 'demo1234',
     role: 'landlord',
+    phoneNumber: DEMO_PHONE,
+    nationalId: `DEMO${String(index + 1).padStart(8, '0')}`,
   }));
 }
 

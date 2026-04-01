@@ -2,6 +2,47 @@ const Payment = require("../models/paymentModel");
 const Listing = require("../models/listingModel");
 const User = require("../models/userModel");
 const { getProvider } = require("../utils/paymentProvider");
+const mongoose = require("mongoose");
+
+const objectId = mongoose.Schema.Types.ObjectId;
+
+const getModel = (name, schemaDefinition) => {
+  if (mongoose.models[name]) {
+    return mongoose.models[name];
+  }
+
+  return mongoose.model(
+    name,
+    new mongoose.Schema(schemaDefinition, {
+      timestamps: true,
+      strict: false,
+    })
+  );
+};
+
+const Room = getModel("Room", {
+  provider: {
+    type: objectId,
+    ref: "User",
+    required: true,
+  },
+});
+
+const Booking = getModel("Booking", {
+  room: {
+    type: objectId,
+    ref: "Room",
+    required: true,
+  },
+  status: {
+    type: String,
+    default: "pending",
+  },
+  paymentStatus: {
+    type: String,
+    default: "unpaid",
+  },
+});
 
 // Successful payment statuses from Paynow (normalized to lowercase)
 const SUCCESSFUL_STATUSES = ["paid"];
@@ -82,6 +123,20 @@ exports.handlePaynowWebhook = async (req, res) => {
         await User.findByIdAndUpdate(claimedPayment.user, {
           premiumExpiry: new Date(base.getTime() + 30 * 24 * 60 * 60 * 1000),
         });
+      }
+
+      if (claimedPayment.type === "booking_payment") {
+        const booking = await Booking.findById(claimedPayment.booking).populate("room");
+
+        if (!booking) {
+          throw new Error("Booking not found");
+        }
+
+        booking.paymentStatus = "paid";
+        if (booking.status === "pending_confirmation" && booking.room.bookingMode === "instant") {
+          booking.status = "confirmed";
+        }
+        await booking.save();
       }
 
       // Step 7 — Respond OK after all side effects succeed

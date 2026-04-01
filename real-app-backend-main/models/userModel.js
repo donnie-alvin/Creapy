@@ -3,6 +3,125 @@ const mongoose = require("mongoose");
 const validator = require("validator");
 const bcrypt = require("bcryptjs");
 
+const providerLocationSchema = new mongoose.Schema(
+  {
+    addressLine: {
+      type: String,
+      default: "",
+    },
+    country: {
+      type: String,
+      default: "Zimbabwe",
+    },
+    province: {
+      type: String,
+      default: "",
+    },
+    city: {
+      type: String,
+      default: "",
+    },
+    coordinates: {
+      lat: {
+        type: Number,
+        default: null,
+      },
+      lng: {
+        type: Number,
+        default: null,
+      },
+    },
+  },
+  { _id: false }
+);
+
+const providerAmenitiesSchema = new mongoose.Schema(
+  {
+    wifi: { type: Boolean, default: false },
+    pool: { type: Boolean, default: false },
+    parking: { type: Boolean, default: false },
+    breakfast: { type: Boolean, default: false },
+    aircon: { type: Boolean, default: false },
+    conferenceRoom: { type: Boolean, default: false },
+    airportPickup: { type: Boolean, default: false },
+    familyFriendly: { type: Boolean, default: false },
+  },
+  { _id: false }
+);
+
+const providerProfileSchema = new mongoose.Schema(
+  {
+    businessName: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    businessType: {
+      type: String,
+      enum: [
+        "hotel",
+        "lodge",
+        "bnb",
+        "motel",
+        "inn",
+        "guesthouse",
+        "serviced_apartment",
+        "backpackers",
+        "other",
+      ],
+    },
+    registrationNumber: {
+      type: String,
+    },
+    contactPhone: {
+      type: String,
+    },
+    address: {
+      type: String,
+    },
+    checkInTime: {
+      type: String,
+    },
+    checkOutTime: {
+      type: String,
+    },
+    imageUrls: [{ type: String }],
+    description: {
+      type: String,
+      trim: true,
+    },
+    verificationStatus: {
+      type: String,
+      enum: ["pending", "approved", "rejected"],
+      default: "pending",
+    },
+    commissionRate: {
+      type: Number,
+      default: 10,
+      min: 0,
+      max: 100,
+    },
+    location: {
+      type: providerLocationSchema,
+      default: () => ({}),
+    },
+    amenities: {
+      type: providerAmenitiesSchema,
+      default: () => ({}),
+    },
+    cancellationPolicy: {
+      type: String,
+      enum: ["flexible", "moderate", "strict", "non_refundable", "custom"],
+      default: "flexible",
+    },
+    cancellationPolicyCustomText: {
+      type: String,
+      default: "",
+    },
+  },
+  { _id: true }
+);
+
 const userSchema = new mongoose.Schema(
   {
     username: {
@@ -30,7 +149,7 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ["tenant", "landlord", "admin"],
+      enum: ["tenant", "landlord", "provider", "admin"],
       default: "tenant",
     },
     phoneNumber: {
@@ -55,6 +174,10 @@ const userSchema = new mongoose.Schema(
     },
     premiumExpiry: {
       type: Date,
+      default: null,
+    },
+    providerProfile: {
+      type: providerProfileSchema,
       default: null,
     },
   },

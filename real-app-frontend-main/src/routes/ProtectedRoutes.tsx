@@ -16,6 +16,8 @@ const ProtectedRoutes = ({ allowedRoles, children }: ProtectedRoutesProps) => {
       ? "/dashboard/admin"
       : role === "landlord"
         ? "/dashboard/landlord"
+        : role === "provider"
+          ? "/dashboard/provider"
         : role === "tenant"
           ? "/dashboard/tenant"
           : "/";

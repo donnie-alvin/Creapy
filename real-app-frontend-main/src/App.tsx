@@ -13,10 +13,14 @@ import ViewListing from "./views/Listing/components/viewListing";
 import SearchPage from "./views/Search";
 import SavedSearches from "./views/SavedSearches";
 import LandlordDashboard from "./views/Dashboard/Landlord";
+import ProviderDashboard from "./views/Dashboard/Provider";
 import TenantDashboard from "./views/Dashboard/Tenant";
 import ListingPayment from "./views/Dashboard/Payment";
 import AdminDashboard from "./views/Dashboard/Admin";
 import VerifyEmail from "./views/VerifyEmail";
+import Stays from "./views/Stays";
+import StayRoomDetail from "./views/Stays/RoomDetail";
+import MyStayBookings from "./views/Stays/MyBookings";
 
 function App() {
   return (
@@ -43,6 +47,8 @@ function App() {
         <Route path="/" element={<Home />} />
         <Route path="/about" element={<About />} />
         <Route path="/search" element={<SearchPage />} />
+        <Route path="/stays" element={<Stays />} />
+        <Route path="/stays/rooms/:roomId" element={<StayRoomDetail />} />
         <Route path="/listing/:id" element={<ViewListing />} />
         {/* Protected Routes */}
         <Route
@@ -62,10 +68,26 @@ function App() {
           }
         />
         <Route
+          path="/stays/bookings"
+          element={
+            <ProtectedRoutes>
+              <MyStayBookings />
+            </ProtectedRoutes>
+          }
+        />
+        <Route
           path="/dashboard/landlord"
           element={
             <ProtectedRoutes allowedRoles={["landlord"]}>
               <LandlordDashboard />
+            </ProtectedRoutes>
+          }
+        />
+        <Route
+          path="/dashboard/provider"
+          element={
+            <ProtectedRoutes allowedRoles={["provider"]}>
+              <ProviderDashboard />
             </ProtectedRoutes>
           }
         />
