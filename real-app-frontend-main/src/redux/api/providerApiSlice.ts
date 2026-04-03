@@ -30,6 +30,13 @@ const toEntityObject = (response: any, keys: string[]) => {
 
 export const providerApiSlice = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
+    registerProvider: builder.mutation({
+      query: (data) => ({
+        url: "providers/register",
+        method: "POST",
+        body: data,
+      }),
+    }),
     getMyRooms: builder.query({
       query: () => ({
         url: "rooms/mine",
@@ -209,6 +216,7 @@ export const providerApiSlice = apiSlice.injectEndpoints({
 });
 
 export const {
+  useRegisterProviderMutation,
   useGetMyRoomsQuery,
   useGetProviderRoomQuery,
   useCreateRoomMutation,

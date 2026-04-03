@@ -2,8 +2,18 @@ const mongoose = require("mongoose");
 const catchAsync = require("../utils/catchAsync");
 const AppError = require("../utils/appError");
 const Payment = require("../models/paymentModel");
+const User = require("../models/userModel");
 const { getProvider } = require("../utils/paymentProvider");
 const { resolvePrice } = require("../utils/pricingResolver");
+const { sendEmail } = require("../utils/email");
+const {
+  bookingRequestSubmittedProvider,
+  bookingRequestAcceptedGuest,
+  bookingRequestDeclinedGuest,
+  bookingCancelledByGuestProvider,
+  bookingCancelledByProviderGuest,
+  bookingSettledProvider,
+} = require("../utils/emailTemplates/stayEmails");
 
 const objectId = mongoose.Schema.Types.ObjectId;
 
@@ -200,6 +210,28 @@ const ensureProviderOwnsBooking = (booking, userId) => {
   }
 };
 
+const sendEmailSafe = async (payload) => {
+  if (!payload?.to) {
+    return;
+  }
+
+  try {
+    await sendEmail(payload);
+  } catch (err) {
+    console.error("[email] send failed:", err.message);
+  }
+};
+
+const resolveProviderEmail = async (room) => {
+  const [providerId] = getRoomOwnerIdentity(room);
+
+  if (!providerId) {
+    return null;
+  }
+
+  return User.findById(providerId).select("email businessName providerProfile");
+};
+
 exports.createBooking = catchAsync(async (req, res, next) => {
   const { roomId, checkIn: rawCheckIn, checkOut: rawCheckOut } = req.body;
 
@@ -235,13 +267,25 @@ exports.createBooking = catchAsync(async (req, res, next) => {
     pricePerNight: pricing.pricePerNight,
     totalPrice: pricing.totalPrice,
     amount: pricing.totalPrice,
-    status: bookingMode === "instant" ? "payment_pending" : "pending",
+    status: bookingMode === "instant" ? "payment_pending" : "pending_confirmation",
     paymentStatus: "unpaid",
   });
 
   const populatedBooking = await Booking.findById(booking._id)
     .populate("room")
     .populate("guest", "username email phoneNumber avatar");
+
+  const provider = await resolveProviderEmail(populatedBooking.room);
+  const emailContext = {
+    booking: populatedBooking,
+    room: populatedBooking.room,
+    guest: populatedBooking.guest,
+    provider,
+  };
+
+  if (bookingMode === "request") {
+    void sendEmailSafe(bookingRequestSubmittedProvider(emailContext));
+  }
 
   res.status(201).json({
     status: "success",
@@ -264,20 +308,47 @@ exports.getMyBookings = catchAsync(async (req, res) => {
 });
 
 exports.cancelBooking = catchAsync(async (req, res, next) => {
-  const booking = await Booking.findById(req.params.id).populate("room");
+  const booking = await Booking.findById(req.params.id)
+    .populate("room")
+    .populate("guest", "email username");
   if (!booking) {
     return next(new AppError("Booking not found", 404));
   }
 
-  ensureBookingOwner(booking, req.user._id);
+  const isGuestCancellation =
+    booking?.guest && booking.guest._id.toString() === req.user._id.toString();
+  const isProviderCancellation = getRoomOwnerIdentity(booking.room).includes(
+    req.user._id.toString()
+  );
+
+  if (!isGuestCancellation && !isProviderCancellation) {
+    return next(new AppError("You do not own this booking", 403));
+  }
 
   if (BOOKING_CANCELLED_STATUSES.includes(String(booking.status).toLowerCase())) {
     return next(new AppError("Booking is already cancelled", 400));
   }
 
   booking.status = "cancelled";
+  booking.cancelledBy = isProviderCancellation ? "provider" : "guest";
   booking.cancelledAt = new Date();
   await booking.save();
+
+  const provider = await resolveProviderEmail(booking.room);
+  const cancellationEmail = isProviderCancellation
+    ? bookingCancelledByProviderGuest({
+        booking,
+        room: booking.room,
+        guest: booking.guest,
+        provider,
+      })
+    : bookingCancelledByGuestProvider({
+        booking,
+        room: booking.room,
+        guest: booking.guest,
+        provider,
+      });
+  void sendEmailSafe(cancellationEmail);
 
   res.status(200).json({
     status: "success",
@@ -312,7 +383,9 @@ exports.getProviderBookings = catchAsync(async (req, res) => {
 });
 
 exports.confirmBooking = catchAsync(async (req, res, next) => {
-  const booking = await Booking.findById(req.params.id).populate("room");
+  const booking = await Booking.findById(req.params.id)
+    .populate("room")
+    .populate("guest", "email username");
   if (!booking) {
     return next(new AppError("Booking not found", 404));
   }
@@ -327,6 +400,16 @@ exports.confirmBooking = catchAsync(async (req, res, next) => {
   booking.confirmedAt = new Date();
   await booking.save();
 
+  const provider = await resolveProviderEmail(booking.room);
+  void sendEmailSafe(
+    bookingRequestAcceptedGuest({
+      booking,
+      room: booking.room,
+      guest: booking.guest,
+      provider,
+    })
+  );
+
   res.status(200).json({
     status: "success",
     data: {
@@ -336,7 +419,9 @@ exports.confirmBooking = catchAsync(async (req, res, next) => {
 });
 
 exports.declineBooking = catchAsync(async (req, res, next) => {
-  const booking = await Booking.findById(req.params.id).populate("room");
+  const booking = await Booking.findById(req.params.id)
+    .populate("room")
+    .populate("guest", "email username");
   if (!booking) {
     return next(new AppError("Booking not found", 404));
   }
@@ -351,6 +436,16 @@ exports.declineBooking = catchAsync(async (req, res, next) => {
   booking.declineReason = req.body.reason || null;
   booking.declinedAt = new Date();
   await booking.save();
+
+  const provider = await resolveProviderEmail(booking.room);
+  void sendEmailSafe(
+    bookingRequestDeclinedGuest({
+      booking,
+      room: booking.room,
+      guest: booking.guest,
+      provider,
+    })
+  );
 
   res.status(200).json({
     status: "success",
@@ -471,6 +566,16 @@ exports.settleBooking = catchAsync(async (req, res, next) => {
   booking.settledAt = new Date();
   booking.settlementReference = req.body.settlementReference || booking.settlementReference || null;
   await booking.save();
+
+  const provider = await resolveProviderEmail(booking.room);
+  void sendEmailSafe(
+    bookingSettledProvider({
+      booking,
+      room: booking.room,
+      guest: booking.guest,
+      provider,
+    })
+  );
 
   res.status(200).json({
     status: "success",

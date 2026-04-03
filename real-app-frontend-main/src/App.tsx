@@ -21,6 +21,7 @@ import VerifyEmail from "./views/VerifyEmail";
 import Stays from "./views/Stays";
 import StayRoomDetail from "./views/Stays/RoomDetail";
 import MyStayBookings from "./views/Stays/MyBookings";
+import ProviderSignUp from "./views/ProviderSignUp";
 
 function App() {
   return (
@@ -40,6 +41,14 @@ function App() {
           element={
             <PublicRoutes>
               <Login />
+            </PublicRoutes>
+          }
+        />
+        <Route
+          path="/provider-signup"
+          element={
+            <PublicRoutes>
+              <ProviderSignUp />
             </PublicRoutes>
           }
         />

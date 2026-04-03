@@ -30,7 +30,7 @@ type StayFilterState = StaySearchParams & {
   amenities: string[];
 };
 
-const BUSINESS_TYPES = [
+export const BUSINESS_TYPES = [
   { label: "All", value: "" },
   { label: "Hotel", value: "hotel" },
   { label: "Lodge", value: "lodge" },

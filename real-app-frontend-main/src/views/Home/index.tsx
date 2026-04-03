@@ -421,7 +421,7 @@ const Home = () => {
             my: { xs: 6, md: 8 },
           }}
         >
-          <Heading sx={{ marginBottom: 2 }}>By Province</Heading>
+          <Heading sx={{ marginBottom: 2 }}>Top featured</Heading>
           {groupedSlides?.length > 0 ? (
             <Swiper
               slidesPerView={1}

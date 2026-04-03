@@ -2,6 +2,13 @@ const Payment = require("../models/paymentModel");
 const Listing = require("../models/listingModel");
 const User = require("../models/userModel");
 const { getProvider } = require("../utils/paymentProvider");
+const { sendEmail } = require("../utils/email");
+const {
+  bookingConfirmedInstantGuest,
+  bookingConfirmedInstantProvider,
+  bookingPaymentSuccessGuest,
+  bookingPaymentSuccessProvider,
+} = require("../utils/emailTemplates/stayEmails");
 const mongoose = require("mongoose");
 
 const objectId = mongoose.Schema.Types.ObjectId;
@@ -46,6 +53,18 @@ const Booking = getModel("Booking", {
 
 // Successful payment statuses from Paynow (normalized to lowercase)
 const SUCCESSFUL_STATUSES = ["paid"];
+
+const sendEmailSafe = async (payload) => {
+  if (!payload?.to) {
+    return;
+  }
+
+  try {
+    await sendEmail(payload);
+  } catch (err) {
+    console.error("[email] send failed:", err.message);
+  }
+};
 
 exports.handlePaynowWebhook = async (req, res) => {
   try {
@@ -133,10 +152,54 @@ exports.handlePaynowWebhook = async (req, res) => {
         }
 
         booking.paymentStatus = "paid";
-        if (booking.status === "pending_confirmation" && booking.room.bookingMode === "instant") {
+        const shouldConfirmInstantBooking =
+          booking.status === "payment_pending" && booking.room.bookingMode === "instant";
+
+        if (shouldConfirmInstantBooking) {
           booking.status = "confirmed";
         }
         await booking.save();
+
+        const guest = await User.findById(booking.guest).select("email username");
+        const provider = await User.findById(booking.room.provider).select(
+          "email businessName providerProfile"
+        );
+
+        void sendEmailSafe(
+          bookingPaymentSuccessGuest({
+            booking,
+            room: booking.room,
+            guest,
+            provider,
+          })
+        );
+        void sendEmailSafe(
+          bookingPaymentSuccessProvider({
+            booking,
+            room: booking.room,
+            guest,
+            provider,
+          })
+        );
+
+        if (shouldConfirmInstantBooking) {
+          void sendEmailSafe(
+            bookingConfirmedInstantGuest({
+              booking,
+              room: booking.room,
+              guest,
+              provider,
+            })
+          );
+          void sendEmailSafe(
+            bookingConfirmedInstantProvider({
+              booking,
+              room: booking.room,
+              guest,
+              provider,
+            })
+          );
+        }
       }
 
       // Step 7 — Respond OK after all side effects succeed

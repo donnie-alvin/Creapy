@@ -207,6 +207,12 @@ const Header = () => {
               <Box sx={menuStyle} onClick={() => navigate("/stays")}>
                 Temporary Stays
               </Box>
+              <AppButton
+                variant="outlined"
+                onClick={() => navigate("/provider-signup")}
+              >
+                List Your Stay
+              </AppButton>
 
               {avatar ? (
                 <>
@@ -373,6 +379,14 @@ const Header = () => {
             }}
           >
             <ListItemText primary="Temporary Stays" />
+          </ListItemButton>
+          <ListItemButton
+            onClick={() => {
+              navigate("/provider-signup");
+              setMobileOpen(false);
+            }}
+          >
+            <ListItemText primary="List Your Stay" />
           </ListItemButton>
 
           {avatar ? (
