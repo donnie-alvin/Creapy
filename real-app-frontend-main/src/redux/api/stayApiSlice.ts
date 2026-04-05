@@ -144,12 +144,7 @@ export const stayApiSlice = apiSlice.injectEndpoints({
 
         return tryCollectionEndpoints(
           fetchWithBQ,
-          [
-            { url: `rooms/search${suffix}` },
-            { url: `rooms${suffix}` },
-            { url: `stays/search${suffix}` },
-            { url: `stays${suffix}` },
-          ],
+          [{ url: `rooms/search${suffix}` }, { url: `rooms${suffix}` }],
           ["rooms", "stays", "results"]
         );
       },
@@ -182,7 +177,7 @@ export const stayApiSlice = apiSlice.injectEndpoints({
         url: `stays/${providerId}`,
         method: "GET",
       }),
-      providesTags: ["Provider"],
+      providesTags: (_result, _error, providerId) => [{ type: "Stay", id: providerId }],
     }),
     createBooking: builder.mutation<any, CreateBookingPayload>({
       async queryFn(payload, _api, _extraOptions, fetchWithBQ) {

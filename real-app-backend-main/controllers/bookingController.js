@@ -233,7 +233,8 @@ const resolveProviderEmail = async (room) => {
 };
 
 exports.createBooking = catchAsync(async (req, res, next) => {
-  const { roomId, checkIn: rawCheckIn, checkOut: rawCheckOut } = req.body;
+  const roomId = req.body.room || req.body.roomId;
+  const { checkIn: rawCheckIn, checkOut: rawCheckOut } = req.body;
 
   if (!isValidObjectId(roomId)) {
     return next(new AppError("Invalid room id", 400));

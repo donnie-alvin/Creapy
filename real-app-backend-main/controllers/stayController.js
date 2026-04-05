@@ -3,66 +3,9 @@ const catchAsync = require("../utils/catchAsync");
 const AppError = require("../utils/appError");
 const User = require("../models/userModel");
 const { resolvePrice } = require("../utils/pricingResolver");
-
-const objectId = mongoose.Schema.Types.ObjectId;
-
-const getModel = (name, schemaDefinition) => {
-  if (mongoose.models[name]) {
-    return mongoose.models[name];
-  }
-
-  return mongoose.model(
-    name,
-    new mongoose.Schema(schemaDefinition, {
-      timestamps: true,
-      strict: false,
-    })
-  );
-};
-
-const Room = getModel("Room", {
-  provider: {
-    type: objectId,
-    ref: "User",
-    required: true,
-  },
-});
-
-const Booking = getModel("Booking", {
-  room: {
-    type: objectId,
-    ref: "Room",
-    required: true,
-  },
-  checkIn: {
-    type: Date,
-    required: true,
-  },
-  checkOut: {
-    type: Date,
-    required: true,
-  },
-  status: {
-    type: String,
-    default: "pending",
-  },
-});
-
-const BlockedDate = getModel("BlockedDate", {
-  room: {
-    type: objectId,
-    ref: "Room",
-    required: true,
-  },
-  startDate: {
-    type: Date,
-    required: true,
-  },
-  endDate: {
-    type: Date,
-    required: true,
-  },
-});
+const Room = require("../models/roomModel");
+const Booking = require("../models/bookingModel");
+const BlockedDate = require("../models/blockedDateModel");
 
 const isValidObjectId = (value) => mongoose.Types.ObjectId.isValid(value);
 

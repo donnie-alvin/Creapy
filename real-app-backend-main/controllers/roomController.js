@@ -163,8 +163,8 @@ exports.getRoomAvailability = catchAsync(async (req, res, next) => {
     return next(new AppError("Room not found", 404));
   }
 
-  const from = parseRequiredDate(req.query.from, "from");
-  const to = parseRequiredDate(req.query.to, "to");
+  const from = parseRequiredDate(req.query.checkIn || req.query.from, "checkIn");
+  const to = parseRequiredDate(req.query.checkOut || req.query.to, "checkOut");
 
   if (from >= to) {
     return next(new AppError("from must be before to", 400));

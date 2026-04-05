@@ -44,6 +44,12 @@ const bookingSchema = new mongoose.Schema(
     totalAmount: {
       type: Number,
     },
+    totalPrice: {
+      type: Number,
+    },
+    netPayout: {
+      type: Number,
+    },
     status: {
       type: String,
       enum: [
@@ -122,7 +128,9 @@ bookingSchema.pre("save", async function (next) {
   this.nights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / 86400000);
   this.subtotal = this.nights * this.pricePerNight;
   this.commissionAmount = (this.subtotal * this.commissionRate) / 100;
+  this.totalPrice = this.subtotal;
   this.totalAmount = this.subtotal;
+  this.netPayout = this.subtotal - this.commissionAmount;
 
   next();
 });
