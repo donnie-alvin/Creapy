@@ -47,6 +47,17 @@ const decorateStay = (room, checkIn, checkOut) => {
   };
 };
 
+const AMENITY_LABEL_TO_FLAG = {
+  "Wi-Fi": "wifi",
+  "Breakfast Included": "breakfast",
+  "Secure Parking": "parking",
+  "Swimming Pool": "pool",
+  "Air Conditioning": "aircon",
+  "Conference Room": "conferenceRoom",
+  "Airport Pickup": "airportPickup",
+  "Family Friendly": "familyFriendly",
+};
+
 exports.searchStays = catchAsync(async (req, res, next) => {
   const checkIn = parseDate(req.query.checkIn, "checkIn");
   const checkOut = parseDate(req.query.checkOut, "checkOut");
@@ -115,6 +126,20 @@ exports.searchStays = catchAsync(async (req, res, next) => {
     if (req.query.bookingMode) {
       roomFilter.bookingMode = req.query.bookingMode;
     }
+
+    const amenityLabels = Array.isArray(req.query.amenities)
+      ? req.query.amenities
+      : typeof req.query.amenities === "string" && req.query.amenities.trim()
+        ? [req.query.amenities]
+        : [];
+
+    amenityLabels.forEach((label) => {
+      const flag = AMENITY_LABEL_TO_FLAG[label];
+
+      if (flag) {
+        roomFilter[`amenities.${flag}`] = true;
+      }
+    });
 
     [
       "wifi",

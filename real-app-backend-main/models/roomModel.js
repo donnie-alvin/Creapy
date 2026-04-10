@@ -8,6 +8,12 @@ const roomAmenitiesSchema = new mongoose.Schema(
     minibar: { type: Boolean, default: false },
     ensuite: { type: Boolean, default: false },
     balcony: { type: Boolean, default: false },
+    breakfast: { type: Boolean, default: false },
+    parking: { type: Boolean, default: false },
+    pool: { type: Boolean, default: false },
+    conferenceRoom: { type: Boolean, default: false },
+    airportPickup: { type: Boolean, default: false },
+    familyFriendly: { type: Boolean, default: false },
   },
   { _id: false }
 );

@@ -14,75 +14,9 @@ const {
   bookingCancelledByProviderGuest,
   bookingSettledProvider,
 } = require("../utils/emailTemplates/stayEmails");
-
-const objectId = mongoose.Schema.Types.ObjectId;
-
-const getModel = (name, schemaDefinition) => {
-  if (mongoose.models[name]) {
-    return mongoose.models[name];
-  }
-
-  return mongoose.model(
-    name,
-    new mongoose.Schema(schemaDefinition, {
-      timestamps: true,
-      strict: false,
-    })
-  );
-};
-
-const Room = getModel("Room", {
-  provider: {
-    type: objectId,
-    ref: "User",
-    required: true,
-  },
-});
-
-const Booking = getModel("Booking", {
-  room: {
-    type: objectId,
-    ref: "Room",
-    required: true,
-  },
-  guest: {
-    type: objectId,
-    ref: "User",
-    required: true,
-  },
-  checkIn: {
-    type: Date,
-    required: true,
-  },
-  checkOut: {
-    type: Date,
-    required: true,
-  },
-  status: {
-    type: String,
-    default: "pending",
-  },
-  paymentStatus: {
-    type: String,
-    default: "unpaid",
-  },
-});
-
-const BlockedDate = getModel("BlockedDate", {
-  room: {
-    type: objectId,
-    ref: "Room",
-    required: true,
-  },
-  startDate: {
-    type: Date,
-    required: true,
-  },
-  endDate: {
-    type: Date,
-    required: true,
-  },
-});
+const Room = require("../models/roomModel");
+const Booking = require("../models/bookingModel");
+const BlockedDate = require("../models/blockedDateModel");
 
 const BOOKING_CANCELLED_STATUSES = ["cancelled", "canceled", "rejected", "declined", "expired"];
 const SETTLEMENT_INELIGIBLE_STATUSES = [...BOOKING_CANCELLED_STATUSES, "settled"];
@@ -268,7 +202,7 @@ exports.createBooking = catchAsync(async (req, res, next) => {
     pricePerNight: pricing.pricePerNight,
     totalPrice: pricing.totalPrice,
     amount: pricing.totalPrice,
-    status: bookingMode === "instant" ? "payment_pending" : "pending_confirmation",
+    status: bookingMode === "instant" ? "pending_payment" : "pending_confirmation",
     paymentStatus: "unpaid",
   });
 
