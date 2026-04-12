@@ -7,7 +7,7 @@ require('dotenv').config({
 const API_BASE = (
   process.env.SEED_API_BASE ||
   process.env.API_BASE ||
-  `http://127.0.0.1:${process.env.PORT || 5000}`
+  `https://alvinphiri-patch-1.d3499gwn793u06.amplifyapp.com`
 ).replace(/\/+$/, '');
 const SEED_API_KEY = process.env.SEED_API_KEY || 'debug123';
 const TARGET_LISTING_COUNT = 100;

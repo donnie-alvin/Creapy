@@ -393,7 +393,7 @@ const RoomDetail = () => {
                           provider?.businessName || room?.provider?.providerProfile?.businessName || ""
                         )}
                       </Avatar>
-                      <Box>
+                      <Box sx={{ minWidth: 0, flex: 1 }}>
                         <Heading sx={{ fontSize: "20px", mb: 0.5 }}>
                           {provider?.businessName ||
                             room?.provider?.providerProfile?.businessName ||
@@ -409,7 +409,7 @@ const RoomDetail = () => {
                       </Box>
                       {(provider?.verificationStatus ||
                         room?.provider?.providerProfile?.verificationStatus) === "approved" ? (
-                        <Chip label="✓ Verified" color="success" sx={{ ml: "auto" }} />
+                        <Chip label="✓ Verified" color="success" sx={{ ml: "auto", flexShrink: 0 }} />
                       ) : null}
                     </Stack>
                   </AppCard>
@@ -436,6 +436,7 @@ const RoomDetail = () => {
                           background: bookingMode === "instant" ? "#DBEAFE" : "#FEF3C7",
                           color: bookingMode === "instant" ? "#1D4ED8" : "#B45309",
                           fontWeight: 700,
+                          alignSelf: "flex-start",
                         }}
                       />
                     </Stack>

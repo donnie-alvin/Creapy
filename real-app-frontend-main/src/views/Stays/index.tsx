@@ -294,7 +294,7 @@ const Stays = () => {
               </Box>
 
               <Box component="form" onSubmit={handleSubmit}>
-                <Grid container spacing={2}>
+                <Grid container spacing={2} alignItems="flex-end">
                   <Grid item xs={12} md={3}>
                     <AppInput
                       label="Location"
@@ -348,7 +348,7 @@ const Stays = () => {
                   </Grid>
                 </Grid>
                 <Box sx={{ mt: 2, display: "flex", justifyContent: "flex-end" }}>
-                  <AppButton type="submit" sx={{ background: "#fff", color: "#0f172a" }}>
+                  <AppButton type="submit" size="large" sx={{ background: "#fff", color: "#0f172a" }}>
                     Search stays
                   </AppButton>
                 </Box>
@@ -400,14 +400,15 @@ const Stays = () => {
                       display: "flex",
                       justifyContent: "space-between",
                       gap: 2,
-                      alignItems: { xs: "stretch", sm: "center" },
+                      alignItems: "center",
+                      flexWrap: "wrap",
                       flexDirection: { xs: "column", sm: "row" },
                     }}
                   >
                     <SubHeading sx={{ color: "#334155" }}>
                       {sortedStays.length} results
                     </SubHeading>
-                    <Box sx={{ width: { xs: "100%", sm: 260 } }}>
+                    <Box sx={{ minWidth: 200, maxWidth: 300, flex: "0 0 auto", width: { xs: "100%" } }}>
                       <AppSelect
                         label="Sort"
                         value={form.sort || ""}
@@ -470,7 +471,15 @@ const Stays = () => {
                                   <FaUserGroup />
                                   <SubHeading>Up to {getRoomCapacity(room)} guests</SubHeading>
                                 </Box>
-                                <SubHeading sx={{ color: "#334155", minHeight: 60 }}>
+                                <SubHeading
+                                  sx={{
+                                    color: "#334155",
+                                    display: "-webkit-box",
+                                    WebkitLineClamp: 3,
+                                    WebkitBoxOrient: "vertical",
+                                    overflow: "hidden",
+                                  }}
+                                >
                                   {getRoomDescription(room)}
                                 </SubHeading>
                                 <Box

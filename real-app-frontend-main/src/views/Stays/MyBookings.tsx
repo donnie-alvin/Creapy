@@ -156,8 +156,19 @@ const MyBookings = () => {
                           alignItems: "flex-start",
                         }}
                       >
-                        <Heading sx={{ fontSize: "22px" }}>{getRoomName(booking)}</Heading>
-                        {getStatusChip(booking?.status)}
+                        <Box sx={{ minWidth: 0, flex: 1 }}>
+                          <Heading
+                            sx={{
+                              fontSize: "22px",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {getRoomName(booking)}
+                          </Heading>
+                        </Box>
+                        <Box sx={{ flexShrink: 0 }}>{getStatusChip(booking?.status)}</Box>
                       </Box>
                       <SubHeading>{getRoomLocation(booking)}</SubHeading>
                       <SubHeading>
