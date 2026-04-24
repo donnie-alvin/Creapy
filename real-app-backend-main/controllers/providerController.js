@@ -1,6 +1,6 @@
 const crypto = require("crypto");
-const User = require("../models/userModel");
-const Room = require("../models/roomModel");
+const bcrypt = require("bcryptjs");
+const prisma = require("../utils/prisma");
 const catchAsync = require("../utils/catchAsync");
 const AppError = require("../utils/appError");
 const { sendEmail } = require("../utils/email");
@@ -105,7 +105,7 @@ const pickAccountUpdates = (body = {}) => {
 };
 
 const buildProviderResponse = (user) => ({
-  _id: user._id,
+  _id: user.id,
   username: user.username,
   email: user.email,
   avatar: user.avatar,
@@ -118,7 +118,9 @@ const buildProviderResponse = (user) => ({
 });
 
 const getProviderOrFail = async (providerId) => {
-  const provider = await User.findOne({ _id: providerId, role: "provider" });
+  const provider = await prisma.user.findFirst({
+    where: { id: providerId, role: "provider" },
+  });
 
   if (!provider) {
     throw new AppError("Provider not found", 404);
@@ -134,31 +136,34 @@ exports.registerProvider = catchAsync(async (req, res, next) => {
   const verification = createEmailVerificationToken();
   const accountUpdates = pickAccountUpdates(req.body);
   const profileUpdates = pickAllowedProfileUpdates(rawProfile);
-
-  const user = new User({
-    ...accountUpdates,
-    role: "provider",
-    isEmailVerified: false,
-    emailVerificationToken: verification.hashedToken,
-    emailVerificationExpires: verification.expiresAt,
-    providerProfile: {
-      ...profileUpdates,
-      verificationStatus: "pending",
-      commissionRate: 10,
+  const hashedPassword = await bcrypt.hash(accountUpdates.password, 12);
+  const user = await prisma.user.create({
+    data: {
+      ...accountUpdates,
+      password: hashedPassword,
+      role: "provider",
+      isEmailVerified: false,
+      emailVerificationToken: verification.hashedToken,
+      emailVerificationExpires: new Date(verification.expiresAt),
+      providerProfile: {
+        ...profileUpdates,
+        verificationStatus: "pending",
+        commissionRate: 10,
+      },
     },
   });
 
-  await user.save();
-
   if (process.env.SKIP_EMAIL_VERIFICATION === "true") {
-    user.isEmailVerified = true;
-    await user.save({ validateBeforeSave: false });
-    user.password = undefined;
+    const verifiedUser = await prisma.user.update({
+      where: { id: user.id },
+      data: { isEmailVerified: true },
+    });
+    verifiedUser.password = undefined;
 
     return res.status(201).json({
       status: "pending_verification",
       data: {
-        user: buildProviderResponse(user),
+        user: buildProviderResponse(verifiedUser),
       },
     });
   }
@@ -166,7 +171,7 @@ exports.registerProvider = catchAsync(async (req, res, next) => {
   try {
     await sendVerificationEmail(user, verification.rawToken);
   } catch (error) {
-    await User.deleteOne({ _id: user._id });
+    await prisma.user.delete({ where: { id: user.id } });
 
     return next(
       new AppError(
@@ -205,61 +210,65 @@ exports.updateMyProfile = catchAsync(async (req, res) => {
 
   const accountUpdates = pickAccountUpdates(req.body);
   const profileUpdates = pickAllowedProfileUpdates(rawProfile);
-
-  Object.assign(provider, accountUpdates);
-  provider.providerProfile = {
-    ...(provider.providerProfile?.toObject?.() || provider.providerProfile || {}),
+  const mergedProfile = {
+    ...(provider.providerProfile || {}),
     ...profileUpdates,
   };
+  if (accountUpdates.password) {
+    accountUpdates.password = await bcrypt.hash(accountUpdates.password, 12);
+  }
 
-  await provider.save();
-  provider.password = undefined;
+  const updatedProvider = await prisma.user.update({
+    where: { id: provider.id },
+    data: {
+      ...accountUpdates,
+      providerProfile: mergedProfile,
+    },
+  });
+  updatedProvider.password = undefined;
 
   res.status(200).json({
     status: "success",
     data: {
-      provider: buildProviderResponse(provider),
+      provider: buildProviderResponse(updatedProvider),
     },
   });
 });
 
 exports.listProviders = catchAsync(async (req, res) => {
-  const filter = { role: "provider" };
+  let providers = await prisma.user.findMany({
+    where: { role: "provider" },
+    orderBy: { createdAt: "desc" },
+  });
 
   if (req.query.verificationStatus) {
-    filter["providerProfile.verificationStatus"] = req.query.verificationStatus;
+    providers = providers.filter(
+      (provider) =>
+        provider.providerProfile?.verificationStatus ===
+        req.query.verificationStatus
+    );
   }
 
   if (req.query.search) {
     const searchRegex = new RegExp(String(req.query.search), "i");
-    filter.$or = [
-      { username: searchRegex },
-      { email: searchRegex },
-      { phoneNumber: searchRegex },
-      { "providerProfile.businessName": searchRegex },
-      { "providerProfile.location.city": searchRegex },
-      { "providerProfile.location.province": searchRegex },
-    ];
+    providers = providers.filter((provider) =>
+      [
+        provider.username,
+        provider.email,
+        provider.phoneNumber,
+        provider.providerProfile?.businessName,
+        provider.providerProfile?.location?.city,
+        provider.providerProfile?.location?.province,
+      ].some((value) => searchRegex.test(String(value || "")))
+    );
   }
 
-  const providers = await User.find(filter).sort("-createdAt");
-  const roomCounts = await Room.aggregate([
-    {
-      $match: {
-        provider: {
-          $in: providers.map((provider) => provider._id),
-        },
-      },
-    },
-    {
-      $group: {
-        _id: "$provider",
-        count: { $sum: 1 },
-      },
-    },
-  ]);
+  const roomCounts = await prisma.room.groupBy({
+    by: ["providerId"],
+    _count: { id: true },
+  });
   const roomCountMap = new Map(
-    roomCounts.map((entry) => [String(entry._id), entry.count])
+    roomCounts.map((entry) => [entry.providerId, entry._count.id])
   );
 
   res.status(200).json({
@@ -267,30 +276,33 @@ exports.listProviders = catchAsync(async (req, res) => {
     total: providers.length,
     data: providers.map((provider) => ({
       ...buildProviderResponse(provider),
-      roomCount: roomCountMap.get(String(provider._id)) || 0,
+      roomCount: roomCountMap.get(provider.id) || 0,
     })),
   });
 });
 
 exports.verifyProvider = catchAsync(async (req, res, next) => {
   const provider = await getProviderOrFail(req.params.id);
-  const verificationStatus = req.body.status;
+  const verificationStatus = req.body.verificationStatus || req.body.status;
 
   if (!["approved", "rejected"].includes(verificationStatus)) {
     return next(new AppError("Invalid verification status", 400));
   }
 
-  provider.providerProfile = {
-    ...(provider.providerProfile?.toObject?.() || provider.providerProfile || {}),
-    verificationStatus,
-  };
-
-  await provider.save();
+  const updatedProvider = await prisma.user.update({
+    where: { id: provider.id },
+    data: {
+      providerProfile: {
+        ...(provider.providerProfile || {}),
+        verificationStatus,
+      },
+    },
+  });
 
   res.status(200).json({
     status: "success",
     data: {
-      provider: buildProviderResponse(provider),
+      provider: buildProviderResponse(updatedProvider),
     },
   });
 });
@@ -303,16 +315,19 @@ exports.updateProviderCommission = catchAsync(async (req, res, next) => {
     return next(new AppError("commissionRate must be between 0 and 100", 400));
   }
 
-  provider.providerProfile = {
-    ...(provider.providerProfile?.toObject?.() || provider.providerProfile || {}),
-    commissionRate,
-  };
-
-  await provider.save();
+  const updatedProvider = await prisma.user.update({
+    where: { id: provider.id },
+    data: {
+      providerProfile: {
+        ...(provider.providerProfile || {}),
+        commissionRate,
+      },
+    },
+  });
 
   res.status(200).json({
     status: "success",
-    data: buildProviderResponse(provider),
+    data: buildProviderResponse(updatedProvider),
   });
 });
 

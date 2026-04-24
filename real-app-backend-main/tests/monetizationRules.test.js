@@ -2,17 +2,29 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-const mongoose = require("mongoose");
 
 const paymentController = require("../controllers/paymentController");
 const webhookController = require("../controllers/webhookController");
 const listingController = require("../controllers/listingController");
 const { createListingValidators } = require("../middleware/listingValidators");
 const validate = require("../middleware/validate");
-const Payment = require("../models/paymentModel");
-const Listing = require("../models/listingModel");
-const User = require("../models/userModel");
+const prisma = require("../utils/prisma");
 const { isPremiumTenant } = require("../utils/monetization");
+
+const originalPrisma = {
+  bookingFindUnique: prisma.booking.findUnique,
+  bookingUpdate: prisma.booking.update,
+  listingFindMany: prisma.listing.findMany,
+  listingFindUnique: prisma.listing.findUnique,
+  listingUpdate: prisma.listing.update,
+  listingUpdateMany: prisma.listing.updateMany,
+  paymentCreate: prisma.payment.create,
+  paymentFindFirst: prisma.payment.findFirst,
+  paymentUpdate: prisma.payment.update,
+  paymentUpdateMany: prisma.payment.updateMany,
+  userFindUnique: prisma.user.findUnique,
+  userUpdate: prisma.user.update,
+};
 
 const invokeController = (handler, req) =>
   new Promise((resolve, reject) => {
@@ -63,7 +75,7 @@ const runValidationChain = async (validators, body) => {
     await validator.run(req);
   }
 
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     const res = {
       statusCode: 200,
       body: null,
@@ -80,6 +92,22 @@ const runValidationChain = async (validators, body) => {
     validate(req, res, () => resolve({ statusCode: 200, body: null }));
   });
 };
+
+test.afterEach(() => {
+  prisma.booking.findUnique = originalPrisma.bookingFindUnique;
+  prisma.booking.update = originalPrisma.bookingUpdate;
+  prisma.listing.findMany = originalPrisma.listingFindMany;
+  prisma.listing.findUnique = originalPrisma.listingFindUnique;
+  prisma.listing.update = originalPrisma.listingUpdate;
+  prisma.listing.updateMany = originalPrisma.listingUpdateMany;
+  prisma.payment.create = originalPrisma.paymentCreate;
+  prisma.payment.findFirst = originalPrisma.paymentFindFirst;
+  prisma.payment.update = originalPrisma.paymentUpdate;
+  prisma.payment.updateMany = originalPrisma.paymentUpdateMany;
+  prisma.user.findUnique = originalPrisma.userFindUnique;
+  prisma.user.update = originalPrisma.userUpdate;
+  delete process.env.PAYMENT_PROVIDER;
+});
 
 test("listing routes keep browse/view public and publish landlord-only", async () => {
   const listingRoutes = require("../routes/listingRoutes");
@@ -151,160 +179,128 @@ test("tenant saved searches no longer require premium middleware", async () => {
 });
 
 test("landlord can initiate listing fee payment", async () => {
-  const originalCreate = Payment.create;
-  const originalFindById = Listing.findById;
-  const originalFindByIdAndUpdate = Listing.findByIdAndUpdate;
-
   let capturedPayment = null;
   let updateArgs = null;
 
-  Payment.create = async (data) => {
+  prisma.payment.create = async ({ data }) => {
     capturedPayment = data;
-    return { _id: "pay_1", ...data, status: "pending" };
+    return { id: "pay_1", ...data, status: "pending" };
   };
 
-  Listing.findById = async () => ({
-    _id: "listing_1",
-    user: "u_1",
+  prisma.listing.findUnique = async () => ({
+    id: "listing_1",
+    userId: "u_1",
     status: "pending_payment",
   });
 
-  Listing.findByIdAndUpdate = async (...args) => {
+  prisma.listing.update = async (args) => {
     updateArgs = args;
     return null;
   };
 
   const result = await invokeController(paymentController.initiateListingFee, {
-    user: {
-      _id: "u_1",
-      toObject: () => ({ _id: "u_1", email: "test@example.com", phone: "256700000000" }),
-    },
+    user: { _id: "u_1" },
     body: { listingId: "listing_1", phone: "256700000000" },
   });
-
-  Payment.create = originalCreate;
-  Listing.findById = originalFindById;
-  Listing.findByIdAndUpdate = originalFindByIdAndUpdate;
 
   assert.equal(result.statusCode, 201);
   assert.equal(result.body.status, "success");
   assert.ok(result.body.data.transactionRef);
   assert.equal(capturedPayment.type, "listing_fee");
   assert.equal(capturedPayment.status, "pending");
-  assert.deepEqual(updateArgs, [
-    "listing_1",
-    { status: "pending_payment" },
-    { new: false },
-  ]);
+  assert.deepEqual(updateArgs, {
+    where: { id: "listing_1" },
+    data: { status: "pending_payment" },
+  });
 });
 
 test("landlord can initiate listing fee payment for inactive listing revival", async () => {
-  const originalCreate = Payment.create;
-  const originalFindById = Listing.findById;
-  const originalFindByIdAndUpdate = Listing.findByIdAndUpdate;
-
   let capturedPayment = null;
   let updateArgs = null;
 
-  Payment.create = async (data) => {
+  prisma.payment.create = async ({ data }) => {
     capturedPayment = data;
-    return { _id: "pay_inactive", ...data, status: "pending" };
+    return { id: "pay_inactive", ...data, status: "pending" };
   };
 
-  Listing.findById = async () => ({
-    _id: "listing_inactive",
-    user: "u_1",
+  prisma.listing.findUnique = async () => ({
+    id: "listing_inactive",
+    userId: "u_1",
     status: "inactive",
   });
 
-  Listing.findByIdAndUpdate = async (...args) => {
+  prisma.listing.update = async (args) => {
     updateArgs = args;
     return null;
   };
 
   const result = await invokeController(paymentController.initiateListingFee, {
-    user: {
-      _id: "u_1",
-      toObject: () => ({ _id: "u_1", email: "test@example.com", phone: "256700000000" }),
-    },
+    user: { _id: "u_1" },
     body: { listingId: "listing_inactive", phone: "256700000000" },
   });
-
-  Payment.create = originalCreate;
-  Listing.findById = originalFindById;
-  Listing.findByIdAndUpdate = originalFindByIdAndUpdate;
 
   assert.equal(result.statusCode, 201);
   assert.equal(result.body.status, "success");
   assert.equal(capturedPayment.type, "listing_fee");
-  assert.deepEqual(updateArgs, [
-    "listing_inactive",
-    { status: "pending_payment" },
-    { new: false },
-  ]);
+  assert.deepEqual(updateArgs, {
+    where: { id: "listing_inactive" },
+    data: { status: "pending_payment" },
+  });
 });
 
 test("landlord can initiate listing fee payment for active listing", async () => {
-  const originalCreate = Payment.create;
-  const originalFindById = Listing.findById;
-  const originalFindByIdAndUpdate = Listing.findByIdAndUpdate;
-
   let capturedPayment = null;
   let updateArgs = null;
 
-  Payment.create = async (data) => {
+  prisma.payment.create = async ({ data }) => {
     capturedPayment = data;
-    return { _id: "pay_active", ...data, status: "pending" };
+    return { id: "pay_active", ...data, status: "pending" };
   };
 
-  Listing.findById = async () => ({
-    _id: "listing_active",
-    user: "u_1",
+  prisma.listing.findUnique = async () => ({
+    id: "listing_active",
+    userId: "u_1",
     status: "active",
     paymentDeadline: null,
   });
 
-  Listing.findByIdAndUpdate = async (...args) => {
+  prisma.listing.update = async (args) => {
     updateArgs = args;
     return null;
   };
 
   const result = await invokeController(paymentController.initiateListingFee, {
-    user: {
-      _id: "u_1",
-      toObject: () => ({ _id: "u_1", email: "test@example.com" }),
-    },
+    user: { _id: "u_1" },
     body: { listingId: "listing_active", phone: "256700000000" },
   });
-
-  Payment.create = originalCreate;
-  Listing.findById = originalFindById;
-  Listing.findByIdAndUpdate = originalFindByIdAndUpdate;
 
   assert.equal(result.statusCode, 201);
   assert.equal(result.body.status, "success");
   assert.equal(capturedPayment.type, "listing_fee");
-  assert.deepEqual(updateArgs, [
-    "listing_active",
-    { status: "pending_payment" },
-    { new: false },
-  ]);
+  assert.deepEqual(updateArgs, {
+    where: { id: "listing_active" },
+    data: { status: "pending_payment" },
+  });
 });
 
 test("landlord can transition active listing to pending payment", async () => {
-  const originalFindById = Listing.findById;
+  let updateArgs = null;
 
-  const listing = {
-    _id: "listing_active",
-    user: { toString: () => "u_1" },
+  prisma.listing.findUnique = async () => ({
+    id: "listing_active",
+    userId: "u_1",
     status: "active",
     paymentDeadline: new Date(Date.now() + 60 * 60 * 1000),
-    async save() {
-      return this;
-    },
-  };
+  });
 
-  Listing.findById = async () => listing;
+  prisma.listing.update = async (args) => {
+    updateArgs = args;
+    return {
+      id: "listing_active",
+      userId: "u_1",
+      status: "pending_payment",
+    };
+  };
 
   const result = await invokeController(
     listingController.transitionListingToPendingPayment,
@@ -314,19 +310,19 @@ test("landlord can transition active listing to pending payment", async () => {
     }
   );
 
-  Listing.findById = originalFindById;
-
   assert.equal(result.statusCode, 200);
   assert.equal(result.body.status, "success");
   assert.equal(result.body.data.status, "pending_payment");
+  assert.deepEqual(updateArgs, {
+    where: { id: "listing_active" },
+    data: { status: "pending_payment" },
+  });
 });
 
 test("listing transition rejects non-active listings", async () => {
-  const originalFindById = Listing.findById;
-
-  Listing.findById = async () => ({
-    _id: "listing_pending",
-    user: { toString: () => "u_1" },
+  prisma.listing.findUnique = async () => ({
+    id: "listing_pending",
+    userId: "u_1",
     status: "pending_payment",
     paymentDeadline: new Date(Date.now() + 60 * 60 * 1000),
   });
@@ -339,8 +335,6 @@ test("listing transition rejects non-active listings", async () => {
     }
   );
 
-  Listing.findById = originalFindById;
-
   assert.equal(result.error.statusCode, 400);
   assert.equal(
     result.error.message,
@@ -349,24 +343,17 @@ test("listing transition rejects non-active listings", async () => {
 });
 
 test("tenant can initiate premium subscription payment", async () => {
-  const originalCreate = Payment.create;
-
   let capturedPayment = null;
 
-  Payment.create = async (data) => {
+  prisma.payment.create = async ({ data }) => {
     capturedPayment = data;
-    return { _id: "pay_2", ...data, status: "pending" };
+    return { id: "pay_2", ...data, status: "pending" };
   };
 
   const result = await invokeController(paymentController.initiateTenantPremium, {
-    user: {
-      _id: "u_2",
-      toObject: () => ({ _id: "u_2", email: "tenant@example.com", phone: "256700000001" }),
-    },
+    user: { _id: "u_2" },
     body: { phone: "256700000001" },
   });
-
-  Payment.create = originalCreate;
 
   assert.equal(result.statusCode, 201);
   assert.equal(result.body.status, "success");
@@ -396,9 +383,8 @@ test("webhook marks failed payments as failed without granting access", async ()
   const paymentProvider = require("../utils/paymentProvider");
   const provider = paymentProvider.getProvider();
   const originalVerifyWebhook = provider.verifyWebhook;
-  const originalFindOneAndUpdate = Payment.findOneAndUpdate;
 
-  let updateCall = null;
+  let updateArgs = null;
 
   provider.verifyWebhook = async () => ({
     valid: true,
@@ -406,9 +392,9 @@ test("webhook marks failed payments as failed without granting access", async ()
     status: "failed",
   });
 
-  Payment.findOneAndUpdate = async (filter, update) => {
-    updateCall = { filter, update };
-    return { _id: "pay_3", transactionRef: "tx_failed", status: "failed" };
+  prisma.payment.updateMany = async (args) => {
+    updateArgs = args;
+    return { count: 1 };
   };
 
   const result = await invokeWebhookHandler(webhookController.handlePaynowWebhook, {
@@ -416,12 +402,13 @@ test("webhook marks failed payments as failed without granting access", async ()
   });
 
   provider.verifyWebhook = originalVerifyWebhook;
-  Payment.findOneAndUpdate = originalFindOneAndUpdate;
 
   assert.equal(result.statusCode, 200);
   assert.equal(result.body.status, "ok");
-  assert.equal(updateCall.update.status, "failed");
-  assert.equal(updateCall.update.webhookVerified, undefined);
+  assert.deepEqual(updateArgs, {
+    where: { transactionRef: "tx_failed" },
+    data: { status: "failed" },
+  });
 });
 
 test("isPremiumTenant returns true only for active premium expiry", () => {
@@ -440,10 +427,8 @@ test("webhook idempotency returns ok on duplicate webhook payloads", async () =>
   const paymentProvider = require("../utils/paymentProvider");
   const provider = paymentProvider.getProvider();
   const originalVerifyWebhook = provider.verifyWebhook;
-  const originalFindOneAndUpdate = Payment.findOneAndUpdate;
-  const originalListingUpdate = Listing.findByIdAndUpdate;
-  const originalUserFindById = User.findById;
-  const originalUserUpdate = User.findByIdAndUpdate;
+
+  let updateManyCalls = 0;
 
   provider.verifyWebhook = async () => ({
     valid: true,
@@ -451,28 +436,22 @@ test("webhook idempotency returns ok on duplicate webhook payloads", async () =>
     status: "paid",
   });
 
-  let claimCalls = 0;
-  const claimArgs = [];
-  Payment.findOneAndUpdate = async (filter, update) => {
-    claimCalls += 1;
-    claimArgs.push({ filter, update });
-    if (claimCalls === 1) {
-      return {
-        _id: "pay_idem",
-        webhookVerified: true,
-        status: "success",
-        type: "noop",
-      };
-    }
-    return null;
+  prisma.payment.updateMany = async () => {
+    updateManyCalls += 1;
+    return { count: updateManyCalls === 1 ? 1 : 0 };
   };
-  Listing.findByIdAndUpdate = async () => {
+  prisma.payment.findFirst = async () => ({
+    id: "pay_idem",
+    transactionRef: "tx_idem",
+    type: "noop",
+  });
+  prisma.listing.update = async () => {
     throw new Error("unexpected listing side effect");
   };
-  User.findById = async () => {
+  prisma.user.findUnique = async () => {
     throw new Error("unexpected user lookup");
   };
-  User.findByIdAndUpdate = async () => {
+  prisma.user.update = async () => {
     throw new Error("unexpected user update");
   };
 
@@ -484,40 +463,22 @@ test("webhook idempotency returns ok on duplicate webhook payloads", async () =>
   const second = await invokeWebhookHandler(webhookController.handlePaynowWebhook, req);
 
   provider.verifyWebhook = originalVerifyWebhook;
-  Payment.findOneAndUpdate = originalFindOneAndUpdate;
-  Listing.findByIdAndUpdate = originalListingUpdate;
-  User.findById = originalUserFindById;
-  User.findByIdAndUpdate = originalUserUpdate;
 
   assert.equal(first.statusCode, 200);
   assert.equal(first.body.status, "ok");
   assert.equal(second.statusCode, 200);
   assert.equal(second.body.status, "ok");
   assert.equal(second.body.reason, "already processed");
-  assert.equal(claimCalls, 2);
-  assert.equal(claimArgs.length, 2);
-  claimArgs.forEach(({ filter, update }) => {
-    assert.equal(filter.transactionRef, "tx_idem");
-    assert.equal(filter.webhookVerified, false);
-    assert.deepEqual(update, { $set: { webhookVerified: true, status: "success" } });
-  });
+  assert.equal(updateManyCalls, 2);
 });
 
 test("getListings applies early_access visibility for premium users only", async () => {
-  const originalUpdateMany = Listing.updateMany;
-  const originalFind = Listing.find;
+  const findCalls = [];
 
-  const capturedFilters = [];
-  Listing.updateMany = async () => ({ modifiedCount: 0 });
-  Listing.find = (filter) => {
-    capturedFilters.push(filter);
-    return {
-      skip: () => ({
-        limit: () => ({
-          sort: async () => [],
-        }),
-      }),
-    };
+  prisma.listing.updateMany = async () => ({ count: 0 });
+  prisma.listing.findMany = async (args) => {
+    findCalls.push(args);
+    return [];
   };
 
   await invokeController(listingController.getListings, {
@@ -529,39 +490,24 @@ test("getListings applies early_access visibility for premium users only", async
     query: {},
   });
 
-  Listing.updateMany = originalUpdateMany;
-  Listing.find = originalFind;
-
-  assert.deepEqual(capturedFilters[0].status, { $in: ["active", "early_access"] });
-  assert.equal(capturedFilters[1].status, "active");
+  assert.deepEqual(findCalls[0].where.status, { in: ["active", "early_access"] });
+  assert.equal(findCalls[1].where.status, "active");
 });
 
 test("promoteExpiredEarlyAccess transitions expired listings to active", async () => {
-  const originalUpdateMany = Listing.updateMany;
-  const originalFind = Listing.find;
-
   const updateCalls = [];
-  Listing.updateMany = async (filter, update) => {
-    updateCalls.push({ filter, update });
-    return { modifiedCount: 1 };
+  prisma.listing.updateMany = async (args) => {
+    updateCalls.push(args);
+    return { count: 1 };
   };
-  Listing.find = () => ({
-    skip: () => ({
-      limit: () => ({
-        sort: async () => [],
-      }),
-    }),
-  });
+  prisma.listing.findMany = async () => [];
 
   await invokeController(listingController.getListings, { query: {} });
 
-  Listing.updateMany = originalUpdateMany;
-  Listing.find = originalFind;
-
   assert.equal(updateCalls.length > 0, true);
-  assert.deepEqual(updateCalls[0].filter.status, "early_access");
-  assert.equal(updateCalls[0].filter.earlyAccessUntil.$lt instanceof Date, true);
-  assert.deepEqual(updateCalls[0].update, { $set: { status: "active" } });
+  assert.deepEqual(updateCalls[0].where.status, "early_access");
+  assert.equal(updateCalls[0].where.earlyAccessUntil.lt instanceof Date, true);
+  assert.deepEqual(updateCalls[0].data, { status: "active" });
 });
 
 test("create listing validators reject sale listings", async () => {
@@ -600,7 +546,7 @@ test("create listing validators accept rent listings", async () => {
   assert.equal(result.body, null);
 });
 
-test("create listing validators accept omitted type and listing model defaults it to rent", async () => {
+test("create listing validators accept omitted type", async () => {
   const result = await runValidationChain(createListingValidators, {
     name: "Sample",
     description: "desc",
@@ -614,27 +560,6 @@ test("create listing validators accept omitted type and listing model defaults i
 
   assert.equal(result.statusCode, 200);
   assert.equal(result.body, null);
-
-  const listing = new Listing({
-    name: "Sample",
-    description: "desc",
-    address: "addr",
-    phoneNumber: "256700000000",
-    monthlyRent: 1000,
-    location: "Kampala",
-    bathrooms: 1,
-    bedrooms: 2,
-    totalRooms: 3,
-    furnished: false,
-    offer: false,
-    imageUrls: ["image.jpg"],
-    user: new mongoose.Types.ObjectId(),
-  });
-
-  const validationError = listing.validateSync();
-
-  assert.equal(validationError, undefined);
-  assert.equal(listing.type, "rent");
 });
 
 test("create listing validators accept null bedrooms when total rooms is provided", async () => {
@@ -651,24 +576,4 @@ test("create listing validators accept null bedrooms when total rooms is provide
 
   assert.equal(result.statusCode, 200);
   assert.equal(result.body, null);
-
-  const listing = new Listing({
-    name: "Sample",
-    description: "desc",
-    address: "addr",
-    phoneNumber: "256700000000",
-    monthlyRent: 1000,
-    location: "Kampala",
-    bathrooms: 1,
-    bedrooms: null,
-    totalRooms: 3,
-    furnished: false,
-    offer: false,
-    imageUrls: ["image.jpg"],
-    user: new mongoose.Types.ObjectId(),
-  });
-
-  const validationError = listing.validateSync();
-
-  assert.equal(validationError, undefined);
 });

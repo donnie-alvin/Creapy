@@ -1,49 +1,10 @@
-const mongoose = require("mongoose");
 const catchAsync = require("../utils/catchAsync");
-const Listing = require("../models/listingModel");
-const User = require("../models/userModel");
+const prisma = require("../utils/prisma");
 const AppError = require("../utils/appError");
 const emailUtils = require("../utils/email");
 
 const MAX_BULK_REVIVE_IDS = 100;
-const objectId = mongoose.Schema.Types.ObjectId;
-
-const getModel = (name, schemaDefinition) => {
-  if (mongoose.models[name]) {
-    return mongoose.models[name];
-  }
-
-  return mongoose.model(
-    name,
-    new mongoose.Schema(schemaDefinition, {
-      timestamps: true,
-      strict: false,
-    })
-  );
-};
-
-const Room = getModel("Room", {
-  provider: {
-    type: objectId,
-    ref: "User",
-    required: true,
-  },
-});
-
-const Booking = getModel("Booking", {
-  room: {
-    type: objectId,
-    ref: "Room",
-    required: true,
-  },
-});
-
 const SETTLEMENT_INELIGIBLE_STATUSES = ["cancelled", "canceled", "rejected", "expired"];
-
-// Escape user-provided text before interpolating into regex filters.
-function escapeRegex(string) {
-  return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
 
 function parseDateRange(startValue, endValue, startLabel, endLabel, next) {
   if (!startValue && !endValue) {
@@ -69,49 +30,10 @@ function parseDateRange(startValue, endValue, startLabel, endLabel, next) {
   }
 
   const range = {};
-  if (startDate) range.$gte = startDate;
-  if (endDate) range.$lte = endDate;
+  if (startDate) range.gte = startDate;
+  if (endDate) range.lte = endDate;
 
   return range;
-}
-
-function normalizeObjectId(value) {
-  if (!value) {
-    return null;
-  }
-
-  if (value instanceof mongoose.Types.ObjectId) {
-    return value;
-  }
-
-  if (typeof value === "string" && mongoose.Types.ObjectId.isValid(value)) {
-    return new mongoose.Types.ObjectId(value);
-  }
-
-  if (typeof value === "object" && value !== null) {
-    if (value._id) {
-      return normalizeObjectId(value._id);
-    }
-
-    if (typeof value.toString === "function") {
-      const stringValue = value.toString();
-      if (mongoose.Types.ObjectId.isValid(stringValue)) {
-        return new mongoose.Types.ObjectId(stringValue);
-      }
-    }
-  }
-
-  return null;
-}
-
-function getRoomProviderId(room) {
-  return (
-    normalizeObjectId(room?.provider) ||
-    normalizeObjectId(room?.providerId) ||
-    normalizeObjectId(room?.owner) ||
-    normalizeObjectId(room?.user) ||
-    normalizeObjectId(room?.providerProfile)
-  );
 }
 
 function getProviderProfile(userDoc) {
@@ -120,33 +42,11 @@ function getProviderProfile(userDoc) {
     : {};
 }
 
-async function getProviderRoomStats() {
-  const rooms = await Room.find({}, "provider providerId owner user providerProfile").lean();
-  const providerIds = new Set();
-  const roomCountByProviderId = new Map();
-
-  rooms.forEach((room) => {
-    const providerId = getRoomProviderId(room);
-    if (!providerId) {
-      return;
-    }
-
-    const key = providerId.toString();
-    providerIds.add(key);
-    roomCountByProviderId.set(key, (roomCountByProviderId.get(key) || 0) + 1);
-  });
-
-  return {
-    providerIds: Array.from(providerIds),
-    roomCountByProviderId,
-  };
-}
-
 function buildProviderResponse(userDoc, roomCount) {
   const providerProfile = getProviderProfile(userDoc);
 
   return {
-    _id: userDoc._id,
+    _id: userDoc.id,
     username: userDoc.username || "Unknown provider",
     email: userDoc.email || null,
     phoneNumber: userDoc.phoneNumber || null,
@@ -165,10 +65,6 @@ function buildProviderResponse(userDoc, roomCount) {
   };
 }
 
-async function getProviderUserDocument(providerId) {
-  return User.collection.findOne({ _id: normalizeObjectId(providerId) });
-}
-
 exports.getInactiveListings = catchAsync(async (req, res, next) => {
   const page = Math.max(1, parseInt(req.query.page, 10) || 1);
   const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20));
@@ -176,20 +72,19 @@ exports.getInactiveListings = catchAsync(async (req, res, next) => {
 
   let userIds;
   const landlordRaw = req.query.landlord ? String(req.query.landlord).trim() : "";
-  const landlord = landlordRaw ? escapeRegex(landlordRaw) : "";
 
-  if (landlord) {
-    const users = await User.find(
-      {
-        $or: [
-          { username: new RegExp(landlord, "i") },
-          { email: new RegExp(landlord, "i") },
+  if (landlordRaw) {
+    const users = await prisma.user.findMany({
+      where: {
+        OR: [
+          { username: { contains: landlordRaw, mode: "insensitive" } },
+          { email: { contains: landlordRaw, mode: "insensitive" } },
         ],
       },
-      "_id"
-    );
+      select: { id: true },
+    });
 
-    userIds = users.map((user) => user._id);
+    userIds = users.map((user) => user.id);
 
     if (!userIds.length) {
       return res.status(200).json({
@@ -201,7 +96,7 @@ exports.getInactiveListings = catchAsync(async (req, res, next) => {
     }
   }
 
-  const filter = { status: "inactive" };
+  const where = { status: "inactive" };
   const {
     province: provinceRaw,
     city: cityRaw,
@@ -213,12 +108,12 @@ exports.getInactiveListings = catchAsync(async (req, res, next) => {
 
   const province = provinceRaw ? String(provinceRaw).trim() : "";
   if (province) {
-    filter["location.province"] = new RegExp(escapeRegex(province), "i");
+    where.province = { contains: province, mode: "insensitive" };
   }
 
   const city = cityRaw ? String(cityRaw).trim() : "";
   if (city) {
-    filter["location.city"] = new RegExp(escapeRegex(city), "i");
+    where.city = { contains: city, mode: "insensitive" };
   }
 
   const paymentDeadlineRange = parseDateRange(
@@ -232,7 +127,7 @@ exports.getInactiveListings = catchAsync(async (req, res, next) => {
     return;
   }
   if (paymentDeadlineRange) {
-    filter.paymentDeadline = paymentDeadlineRange;
+    where.paymentDeadline = paymentDeadlineRange;
   }
 
   const createdAtRange = parseDateRange(
@@ -246,25 +141,38 @@ exports.getInactiveListings = catchAsync(async (req, res, next) => {
     return;
   }
   if (createdAtRange) {
-    filter.createdAt = createdAtRange;
+    where.createdAt = createdAtRange;
   }
 
   if (userIds) {
-    filter.user = { $in: userIds };
+    where.userId = { in: userIds };
   }
 
-  const total = await Listing.countDocuments(filter);
-  const listings = await Listing.find(filter)
-    .populate("user", "username email")
-    .skip(skip)
-    .limit(limit)
-    .sort({ paymentDeadline: 1 });
+  const total = await prisma.listing.count({ where });
+  const listings = await prisma.listing.findMany({
+    where,
+    skip,
+    take: limit,
+    orderBy: { paymentDeadline: "asc" },
+    include: {
+      user: {
+        select: {
+          username: true,
+          email: true,
+        },
+      },
+    },
+  });
 
   res.status(200).json({
     status: "success",
     total,
     results: listings.length,
-    data: listings,
+    data: listings.map((listing) => ({
+      ...listing,
+      _id: listing.id,
+      user: listing.user,
+    })),
   });
 });
 
@@ -285,12 +193,17 @@ exports.bulkReviveListings = catchAsync(async (req, res, next) => {
   const failed = [];
 
   for (const id of normalizedIds) {
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      failed.push({ id, reason: "Listing not found" });
-      continue;
-    }
-
-    const listing = await Listing.findById(id).populate("user", "username email");
+    const listing = await prisma.listing.findUnique({
+      where: { id },
+      include: {
+        user: {
+          select: {
+            username: true,
+            email: true,
+          },
+        },
+      },
+    });
 
     if (!listing) {
       failed.push({ id, reason: "Listing not found" });
@@ -302,10 +215,12 @@ exports.bulkReviveListings = catchAsync(async (req, res, next) => {
       continue;
     }
 
-    const activeCount = await Listing.countDocuments({
-      user: listing.user._id,
-      status: { $ne: "inactive" },
-      _id: { $ne: listing._id },
+    const activeCount = await prisma.listing.count({
+      where: {
+        userId: listing.userId,
+        status: { not: "inactive" },
+        id: { not: listing.id },
+      },
     });
 
     if (activeCount >= 1) {
@@ -313,22 +228,28 @@ exports.bulkReviveListings = catchAsync(async (req, res, next) => {
       continue;
     }
 
-    listing.status = "active";
-    listing.publishedAt = new Date();
-    listing.paymentDeadline = new Date(Date.now() + 48 * 60 * 60 * 1000);
-    await listing.save();
+    await prisma.listing.update({
+      where: { id },
+      data: {
+        status: "active",
+        publishedAt: new Date(),
+        paymentDeadline: new Date(Date.now() + 48 * 60 * 60 * 1000),
+      },
+    });
 
     revived.push(id);
 
     if (listing.user?.email) {
-      emailUtils.sendEmail({
-        to: listing.user.email,
-        subject: "Your listing has been revived",
-        text: `Your listing '${listing.name}' has been revived by an admin and is now active. You have 48 hours to complete payment to keep it live.`,
-      }).catch((error) => {
-        // eslint-disable-next-line no-console
-        console.log("[admin-revive-email]", error?.message || error);
-      });
+      emailUtils
+        .sendEmail({
+          to: listing.user.email,
+          subject: "Your listing has been revived",
+          text: `Your listing '${listing.name}' has been revived by an admin and is now active. You have 48 hours to complete payment to keep it live.`,
+        })
+        .catch((error) => {
+          // eslint-disable-next-line no-console
+          console.log("[admin-revive-email]", error?.message || error);
+        });
     }
   }
 
@@ -344,20 +265,25 @@ exports.getProviders = catchAsync(async (req, res) => {
     ? String(req.query.verificationStatus).trim().toLowerCase()
     : "";
   const searchRaw = req.query.search ? String(req.query.search).trim() : "";
-  const search = searchRaw ? escapeRegex(searchRaw) : "";
+  const search = searchRaw.toLowerCase();
 
-  const { providerIds, roomCountByProviderId } = await getProviderRoomStats();
-  const rawUsers = await User.collection
-    .find({
-      $or: [
-        { _id: { $in: providerIds.map((id) => new mongoose.Types.ObjectId(id)) } },
-        { providerProfile: { $exists: true } },
-      ],
-    })
-    .toArray();
+  const roomStats = await prisma.room.groupBy({
+    by: ["providerId"],
+    _count: { id: true },
+  });
+  const roomCountByProviderId = new Map(
+    roomStats.map((item) => [item.providerId, item._count.id])
+  );
+  const providerIds = roomStats.map((item) => item.providerId);
+
+  const rawUsers = await prisma.user.findMany({
+    where: {
+      OR: [{ id: { in: providerIds } }, { providerProfile: { not: null } }],
+    },
+  });
 
   const filteredProviders = rawUsers
-    .map((userDoc) => buildProviderResponse(userDoc, roomCountByProviderId.get(String(userDoc._id)) || 0))
+    .map((userDoc) => buildProviderResponse(userDoc, roomCountByProviderId.get(userDoc.id) || 0))
     .filter((provider) => {
       if (
         verificationStatusRaw &&
@@ -372,9 +298,10 @@ exports.getProviders = catchAsync(async (req, res) => {
 
       const haystack = [provider.username, provider.email, provider.phoneNumber]
         .filter(Boolean)
-        .join(" ");
+        .join(" ")
+        .toLowerCase();
 
-      return new RegExp(search, "i").test(haystack);
+      return haystack.includes(search);
     })
     .sort((left, right) => {
       const leftDate = left.createdAt ? new Date(left.createdAt).getTime() : 0;
@@ -391,7 +318,7 @@ exports.getProviders = catchAsync(async (req, res) => {
 });
 
 exports.verifyProvider = catchAsync(async (req, res, next) => {
-  const providerId = normalizeObjectId(req.params.id);
+  const providerId = req.params.id;
   const verificationStatus = (req.body.verificationStatus || req.body.status || "")
     .toString()
     .trim()
@@ -405,38 +332,33 @@ exports.verifyProvider = catchAsync(async (req, res, next) => {
     return next(new AppError("verificationStatus must be approved, rejected, or pending", 400));
   }
 
-  const provider = await getProviderUserDocument(providerId);
+  const provider = await prisma.user.findUnique({
+    where: { id: providerId },
+  });
   if (!provider) {
     return next(new AppError("Provider not found", 404));
   }
 
-  const providerProfile = getProviderProfile(provider);
-  const updatedProviderProfile = {
-    ...providerProfile,
+  const merged = {
+    ...(provider.providerProfile || {}),
     verificationStatus,
     verifiedAt: verificationStatus === "approved" ? new Date() : null,
-    verificationNotes: req.body.verificationNotes || providerProfile.verificationNotes || null,
+    verificationNotes: req.body.verificationNotes || provider.providerProfile?.verificationNotes || null,
   };
 
-  await User.collection.updateOne(
-    { _id: providerId },
-    { $set: { providerProfile: updatedProviderProfile } }
-  );
+  const updatedProvider = await prisma.user.update({
+    where: { id: providerId },
+    data: { providerProfile: merged },
+  });
 
   res.status(200).json({
     status: "success",
-    data: buildProviderResponse(
-      {
-        ...provider,
-        providerProfile: updatedProviderProfile,
-      },
-      0
-    ),
+    data: buildProviderResponse(updatedProvider, 0),
   });
 });
 
 exports.updateProviderCommission = catchAsync(async (req, res, next) => {
-  const providerId = normalizeObjectId(req.params.id);
+  const providerId = req.params.id;
   const commissionRate = Number(req.body.commissionRate);
 
   if (!providerId) {
@@ -447,44 +369,39 @@ exports.updateProviderCommission = catchAsync(async (req, res, next) => {
     return next(new AppError("commissionRate must be a non-negative number", 400));
   }
 
-  const provider = await getProviderUserDocument(providerId);
+  const provider = await prisma.user.findUnique({
+    where: { id: providerId },
+  });
   if (!provider) {
     return next(new AppError("Provider not found", 404));
   }
 
-  const providerProfile = getProviderProfile(provider);
-  const updatedProviderProfile = {
-    ...providerProfile,
-    commissionRate,
-  };
-
-  await User.collection.updateOne(
-    { _id: providerId },
-    { $set: { providerProfile: updatedProviderProfile } }
-  );
+  const updatedProvider = await prisma.user.update({
+    where: { id: providerId },
+    data: {
+      providerProfile: {
+        ...(provider.providerProfile || {}),
+        commissionRate,
+      },
+    },
+  });
 
   res.status(200).json({
     status: "success",
-    data: buildProviderResponse(
-      {
-        ...provider,
-        providerProfile: updatedProviderProfile,
-      },
-      0
-    ),
+    data: buildProviderResponse(updatedProvider, 0),
   });
 });
 
 exports.getAllBookings = catchAsync(async (req, res, next) => {
   const status = req.query.status ? String(req.query.status).trim() : "";
-  const providerId = normalizeObjectId(req.query.provider);
+  const providerId = req.query.provider ? String(req.query.provider) : "";
   const settlementStatus = req.query.settlementStatus
     ? String(req.query.settlementStatus).trim().toLowerCase()
     : "";
   const dateFrom = req.query.dateFrom ? new Date(req.query.dateFrom) : null;
   const dateTo = req.query.dateTo ? new Date(req.query.dateTo) : null;
 
-  if (req.query.provider && !providerId) {
+  if (req.query.provider && !providerId.trim()) {
     return next(new AppError("Invalid provider filter", 400));
   }
 
@@ -496,89 +413,73 @@ exports.getAllBookings = catchAsync(async (req, res, next) => {
     return next(new AppError("Invalid dateTo", 400));
   }
 
-  const bookingQuery = {};
+  const where = {};
 
   if (status) {
-    bookingQuery.status = status;
+    where.status = status;
   }
 
   if (dateFrom || dateTo) {
-    bookingQuery.createdAt = {};
-    if (dateFrom) bookingQuery.createdAt.$gte = dateFrom;
-    if (dateTo) bookingQuery.createdAt.$lte = dateTo;
+    where.createdAt = {};
+    if (dateFrom) where.createdAt.gte = dateFrom;
+    if (dateTo) where.createdAt.lte = dateTo;
   }
 
   if (settlementStatus === "settled") {
-    bookingQuery.$or = [{ settlementStatus: "settled" }, { settledAt: { $ne: null } }];
+    where.OR = [{ settlementStatus: "settled" }, { settledAt: { not: null } }];
   } else if (settlementStatus === "pending") {
-    bookingQuery.$and = [
-      {
-        $or: [{ settlementStatus: { $exists: false } }, { settlementStatus: { $ne: "settled" } }],
-      },
-      {
-        $or: [{ settledAt: { $exists: false } }, { settledAt: null }],
-      },
-    ];
+    where.AND = [{ settlementStatus: { not: "settled" } }, { settledAt: null }];
   }
 
-  if (providerId) {
-    const providerRooms = await Room.find(
-      {
-        $or: [
-          { provider: providerId },
-          { providerId },
-          { owner: providerId },
-          { user: providerId },
-          { providerProfile: providerId },
-        ],
-      },
-      "_id"
-    ).lean();
-
-    bookingQuery.room = { $in: providerRooms.map((room) => room._id) };
+  if (providerId.trim()) {
+    const providerRooms = await prisma.room.findMany({
+      where: { providerId: providerId.trim() },
+      select: { id: true },
+    });
+    where.roomId = { in: providerRooms.map((room) => room.id) };
   }
 
-  const bookings = await Booking.find(bookingQuery).sort("-createdAt").lean();
-  const roomIds = bookings
-    .map((booking) => normalizeObjectId(booking.room))
-    .filter(Boolean);
+  const bookings = await prisma.booking.findMany({
+    where,
+    orderBy: { createdAt: "desc" },
+  });
+  const roomIds = Array.from(new Set(bookings.map((booking) => booking.roomId).filter(Boolean)));
   const rooms = roomIds.length
-    ? await Room.find({ _id: { $in: roomIds } }).lean()
+    ? await prisma.room.findMany({
+        where: { id: { in: roomIds } },
+      })
     : [];
-  const roomsById = new Map(rooms.map((room) => [String(room._id), room]));
+  const roomsById = new Map(rooms.map((room) => [room.id, room]));
   const bookingProviderIds = Array.from(
-    new Set(
-      rooms
-        .map((room) => getRoomProviderId(room))
-        .filter(Boolean)
-        .map((id) => id.toString())
-    )
+    new Set(rooms.map((room) => room.providerId).filter(Boolean))
   );
   const providers = bookingProviderIds.length
-    ? await User.collection
-        .find({ _id: { $in: bookingProviderIds.map((id) => new mongoose.Types.ObjectId(id)) } })
-        .toArray()
+    ? await prisma.user.findMany({
+        where: { id: { in: bookingProviderIds } },
+      })
     : [];
-  const providersById = new Map(providers.map((provider) => [String(provider._id), provider]));
+  const providersById = new Map(providers.map((provider) => [provider.id, provider]));
 
   const data = bookings.map((booking) => {
-    const room = roomsById.get(String(booking.room)) || null;
-    const provider = room ? providersById.get(String(getRoomProviderId(room))) || null : null;
+    const room = roomsById.get(booking.roomId) || null;
+    const provider = room ? providersById.get(room.providerId) || null : null;
     const isSettled = booking.settlementStatus === "settled" || Boolean(booking.settledAt);
 
     return {
       ...booking,
+      _id: booking.id,
       settlementStatus: isSettled ? "settled" : "pending",
       room: room
         ? {
-            _id: room._id,
+            ...room,
+            _id: room.id,
             name: room.name || room.title || room.roomName || "Room",
             location: room.location || null,
           }
         : null,
       provider: provider
         ? {
-            _id: provider._id,
+            _id: provider.id,
             username: provider.username || "Unknown provider",
             email: provider.email || null,
           }
@@ -595,11 +496,9 @@ exports.getAllBookings = catchAsync(async (req, res, next) => {
 });
 
 exports.settleBooking = catchAsync(async (req, res, next) => {
-  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-    return next(new AppError("Invalid booking id", 400));
-  }
-
-  const booking = await Booking.findById(req.params.id);
+  const booking = await prisma.booking.findUnique({
+    where: { id: req.params.id },
+  });
   if (!booking) {
     return next(new AppError("Booking not found", 404));
   }
@@ -612,13 +511,21 @@ exports.settleBooking = catchAsync(async (req, res, next) => {
     return next(new AppError("Booking is not eligible for settlement", 400));
   }
 
-  booking.settlementStatus = "settled";
-  booking.settledAt = new Date();
-  booking.settlementReference = req.body.settlementReference || booking.settlementReference || null;
-  await booking.save();
+  const updatedBooking = await prisma.booking.update({
+    where: { id: req.params.id },
+    data: {
+      settlementStatus: "settled",
+      settledAt: new Date(),
+      settlementReference:
+        req.body.settlementReference || booking.settlementReference || null,
+    },
+  });
 
   res.status(200).json({
     status: "success",
-    data: booking,
+    data: {
+      ...updatedBooking,
+      _id: updatedBooking.id,
+    },
   });
 });

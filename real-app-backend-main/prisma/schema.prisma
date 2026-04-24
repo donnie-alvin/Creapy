@@ -1,0 +1,181 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id                       String         @id @default(cuid())
+  username                 String         @unique
+  email                    String         @unique
+  password                 String
+  avatar                   String         @default("https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS5jifLXKb2qo_5aXh54USNlvxI34oPpG3zTw&usqp=CAU")
+  role                     String         @default("tenant")
+  phoneNumber              String?
+  nationalId               String?
+  isEmailVerified          Boolean        @default(false)
+  emailVerificationToken   String?
+  emailVerificationExpires DateTime?
+  premiumExpiry            DateTime?
+  providerProfile          Json?
+  listings                 Listing[]
+  payments                 Payment[]
+  rooms                    Room[]
+  guestBookings            Booking[]      @relation("GuestBookings")
+  providerBookings         Booking[]      @relation("ProviderBookings")
+  savedSearches            SavedSearch[]
+  blockedDates             BlockedDate[]
+  createdAt                DateTime       @default(now())
+  updatedAt                DateTime       @updatedAt
+}
+
+model Listing {
+  id                   String    @id @default(cuid())
+  name                 String
+  description          String
+  address              String
+  phoneNumber          String
+  monthlyRent          Float
+  province             String    @default("")
+  city                 String    @default("")
+  addressLine          String    @default("")
+  lat                  Float?
+  lng                  Float?
+  amenities            Json      @default("{}")
+  status               String    @default("active")
+  earlyAccessUntil     DateTime?
+  publishedAt          DateTime?
+  paymentDeadline      DateTime?
+  bathrooms            Int
+  bedrooms             Int?
+  totalRooms           Int
+  furnished            Boolean
+  type                 String    @default("rent")
+  offer                Boolean
+  studentAccommodation Boolean @default(false)
+  imageUrls            Json      @default("[]")
+  userId               String
+  user                 User      @relation(fields: [userId], references: [id])
+  payments             Payment[]
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@index([userId, status])
+}
+
+model Room {
+  id                            String        @id @default(cuid())
+  providerId                    String
+  provider                      User          @relation(fields: [providerId], references: [id])
+  name                          String
+  description                   String?
+  roomType                      String?
+  capacity                      Int?
+  basePricePerNight             Float
+  pricingRules                  Json          @default("[]")
+  amenities                     Json          @default("{}")
+  imageUrls                     Json          @default("[]")
+  status                        String        @default("available")
+  bookingMode                   String        @default("instant")
+  maxAdvanceBookingDays         Int           @default(90)
+  cancellationPolicy            String?
+  cancellationPolicyCustomText  String?
+  bookings                      Booking[]
+  blockedDates                  BlockedDate[]
+  createdAt                     DateTime      @default(now())
+  updatedAt                     DateTime      @updatedAt
+
+  @@index([providerId, status])
+}
+
+model Booking {
+  id                 String    @id @default(cuid())
+  roomId             String
+  providerId         String?
+  guestId            String
+  checkIn            DateTime
+  checkOut           DateTime
+  nights             Int?
+  pricePerNight      Float?
+  subtotal           Float?
+  commissionRate     Float?
+  commissionAmount   Float?
+  totalAmount        Float?
+  totalPrice         Float?
+  netPayout          Float?
+  status             String    @default("pending_confirmation")
+  bookingMode        String?
+  guestCount         Int?
+  paymentStatus      String    @default("unpaid")
+  paymentRef         String?
+  settlementStatus   String    @default("pending")
+  specialRequests    String    @default("")
+  cancelledBy        String?
+  cancellationReason String?
+  cancellationPolicy String?
+  refundAmount       Float     @default(0)
+  cancelledAt        DateTime?
+  settledAt          DateTime?
+  settlementReference String?
+  room               Room      @relation(fields: [roomId], references: [id])
+  guest              User      @relation("GuestBookings", fields: [guestId], references: [id])
+  providerUser       User?     @relation("ProviderBookings", fields: [providerId], references: [id])
+  payments           Payment[]
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([roomId, checkIn, checkOut, status])
+  @@index([guestId, createdAt])
+}
+
+model Payment {
+  id              String    @id @default(cuid())
+  userId          String
+  amount          Float
+  method          String    @default("mock")
+  status          String    @default("pending")
+  type            String
+  listingId       String?
+  bookingId       String?
+  transactionRef  String?   @unique
+  webhookVerified Boolean   @default(false)
+  user            User      @relation(fields: [userId], references: [id])
+  listing         Listing?  @relation(fields: [listingId], references: [id])
+  booking         Booking?  @relation(fields: [bookingId], references: [id])
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model SavedSearch {
+  id             String    @id @default(cuid())
+  userId         String
+  name           String    @default("Saved Search")
+  criteria       Json      @default("{}")
+  notifyBy       String    @default("email")
+  isActive       Boolean   @default(true)
+  lastNotifiedAt DateTime?
+  user           User      @relation(fields: [userId], references: [id])
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([isActive])
+}
+
+model BlockedDate {
+  id         String    @id @default(cuid())
+  roomId     String
+  providerId String?
+  startDate  DateTime
+  endDate    DateTime
+  reason     String    @default("")
+  room       Room      @relation(fields: [roomId], references: [id])
+  provider   User?     @relation(fields: [providerId], references: [id])
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([roomId, startDate, endDate])
+}

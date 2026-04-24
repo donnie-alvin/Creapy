@@ -2,14 +2,16 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const emailUtils = require("../utils/email");
-const Listing = require("../models/listingModel");
-const User = require("../models/userModel");
+const prisma = require("../utils/prisma");
 
 const originalSendEmail = emailUtils.sendEmail;
-const originalCountDocuments = Listing.countDocuments;
-const originalFind = Listing.find;
-const originalFindById = Listing.findById;
-const originalUserFind = User.find;
+const originalPrisma = {
+  listingCount: prisma.listing.count,
+  listingFindMany: prisma.listing.findMany,
+  listingFindUnique: prisma.listing.findUnique,
+  listingUpdate: prisma.listing.update,
+  userFindMany: prisma.user.findMany,
+};
 
 const loadAdminController = () => {
   delete require.cache[require.resolve("../controllers/adminController")];
@@ -42,10 +44,11 @@ const invokeController = (handler, req) =>
 
 test.afterEach(() => {
   emailUtils.sendEmail = originalSendEmail;
-  Listing.countDocuments = originalCountDocuments;
-  Listing.find = originalFind;
-  Listing.findById = originalFindById;
-  User.find = originalUserFind;
+  prisma.listing.count = originalPrisma.listingCount;
+  prisma.listing.findMany = originalPrisma.listingFindMany;
+  prisma.listing.findUnique = originalPrisma.listingFindUnique;
+  prisma.listing.update = originalPrisma.listingUpdate;
+  prisma.user.findMany = originalPrisma.userFindMany;
 });
 
 test("admin routes expose inactive listings and bulk revive endpoints", async () => {
@@ -68,37 +71,24 @@ test("admin routes expose inactive listings and bulk revive endpoints", async ()
 test("getInactiveListings returns paginated inactive listings", async () => {
   const adminController = loadAdminController();
 
-  let countFilter = null;
-  let findFilter = null;
+  let countArgs = null;
+  let findArgs = null;
 
-  Listing.countDocuments = async (filter) => {
-    countFilter = filter;
+  prisma.listing.count = async (args) => {
+    countArgs = args;
     return 1;
   };
 
-  Listing.find = (filter) => {
-    findFilter = filter;
-
-    return {
-      populate() {
-        return this;
+  prisma.listing.findMany = async (args) => {
+    findArgs = args;
+    return [
+      {
+        id: "listing-1",
+        name: "Dorm room",
+        status: "inactive",
+        user: { username: "owner", email: "owner@example.com" },
       },
-      skip() {
-        return this;
-      },
-      limit() {
-        return this;
-      },
-      sort() {
-        return Promise.resolve([
-          {
-            _id: "507f1f77bcf86cd799439011",
-            name: "Dorm room",
-            status: "inactive",
-          },
-        ]);
-      },
-    };
+    ];
   };
 
   const result = await invokeController(adminController.getInactiveListings, {
@@ -109,47 +99,30 @@ test("getInactiveListings returns paginated inactive listings", async () => {
   assert.equal(result.body.status, "success");
   assert.equal(result.body.total, 1);
   assert.equal(result.body.results, 1);
-  assert.deepEqual(countFilter, { status: "inactive" });
-  assert.deepEqual(findFilter, { status: "inactive" });
+  assert.deepEqual(countArgs, { where: { status: "inactive" } });
+  assert.deepEqual(findArgs.where, { status: "inactive" });
+  assert.equal(findArgs.skip, 0);
+  assert.equal(findArgs.take, 10);
+  assert.deepEqual(findArgs.orderBy, { paymentDeadline: "asc" });
 });
 
 test("getInactiveListings combines landlord, location, and date filters", async () => {
   const adminController = loadAdminController();
 
-  let countFilter = null;
-  let findFilter = null;
-  let skipValue = null;
-  let limitValue = null;
-  let sortValue = null;
+  let countArgs = null;
+  let findArgs = null;
 
-  User.find = async () => [{ _id: "user_1" }, { _id: "user_2" }];
-  Listing.countDocuments = async (filter) => {
-    countFilter = filter;
+  prisma.user.findMany = async () => [{ id: "user_1" }, { id: "user_2" }];
+  prisma.listing.count = async (args) => {
+    countArgs = args;
     return 2;
   };
-  Listing.find = (filter) => {
-    findFilter = filter;
-
-    return {
-      populate() {
-        return this;
-      },
-      skip(value) {
-        skipValue = value;
-        return this;
-      },
-      limit(value) {
-        limitValue = value;
-        return this;
-      },
-      sort(value) {
-        sortValue = value;
-        return Promise.resolve([
-          { _id: "listing_1", status: "inactive" },
-          { _id: "listing_2", status: "inactive" },
-        ]);
-      },
-    };
+  prisma.listing.findMany = async (args) => {
+    findArgs = args;
+    return [
+      { id: "listing_1", status: "inactive", user: { username: "one", email: "one@example.com" } },
+      { id: "listing_2", status: "inactive", user: { username: "two", email: "two@example.com" } },
+    ];
   };
 
   const result = await invokeController(adminController.getInactiveListings, {
@@ -169,47 +142,51 @@ test("getInactiveListings combines landlord, location, and date filters", async 
   assert.equal(result.statusCode, 200);
   assert.equal(result.body.total, 2);
   assert.equal(result.body.results, 2);
-  assert.deepEqual(countFilter.user, { $in: ["user_1", "user_2"] });
-  assert.deepEqual(findFilter.user, { $in: ["user_1", "user_2"] });
-  assert.equal(countFilter.status, "inactive");
-  assert.equal(findFilter.status, "inactive");
-  assert.equal(countFilter["location.province"].source, "Harare");
-  assert.equal(countFilter["location.province"].flags, "i");
-  assert.equal(countFilter["location.city"].source, "Avondale");
-  assert.equal(countFilter["location.city"].flags, "i");
+  assert.deepEqual(countArgs.where.userId, { in: ["user_1", "user_2"] });
+  assert.deepEqual(findArgs.where.userId, { in: ["user_1", "user_2"] });
+  assert.equal(countArgs.where.status, "inactive");
+  assert.equal(findArgs.where.status, "inactive");
+  assert.deepEqual(countArgs.where.province, {
+    contains: "Harare",
+    mode: "insensitive",
+  });
+  assert.deepEqual(countArgs.where.city, {
+    contains: "Avondale",
+    mode: "insensitive",
+  });
   assert.equal(
-    countFilter.paymentDeadline.$gte.toISOString(),
+    countArgs.where.paymentDeadline.gte.toISOString(),
     "2025-01-01T00:00:00.000Z"
   );
   assert.equal(
-    countFilter.paymentDeadline.$lte.toISOString(),
+    countArgs.where.paymentDeadline.lte.toISOString(),
     "2025-01-31T00:00:00.000Z"
   );
   assert.equal(
-    countFilter.createdAt.$gte.toISOString(),
+    countArgs.where.createdAt.gte.toISOString(),
     "2024-12-01T00:00:00.000Z"
   );
   assert.equal(
-    countFilter.createdAt.$lte.toISOString(),
+    countArgs.where.createdAt.lte.toISOString(),
     "2024-12-31T00:00:00.000Z"
   );
-  assert.equal(skipValue, 5);
-  assert.equal(limitValue, 5);
-  assert.deepEqual(sortValue, { paymentDeadline: 1 });
+  assert.equal(findArgs.skip, 5);
+  assert.equal(findArgs.take, 5);
+  assert.deepEqual(findArgs.orderBy, { paymentDeadline: "asc" });
 });
 
 test("getInactiveListings returns empty results when landlord search has no matches", async () => {
   const adminController = loadAdminController();
   let listingQueries = 0;
 
-  User.find = async () => [];
-  Listing.countDocuments = async () => {
+  prisma.user.findMany = async () => [];
+  prisma.listing.count = async () => {
     listingQueries += 1;
     return 0;
   };
-  Listing.find = () => {
+  prisma.listing.findMany = async () => {
     listingQueries += 1;
-    throw new Error("Listing.find should not be called");
+    throw new Error("prisma.listing.findMany should not be called");
   };
 
   const result = await invokeController(adminController.getInactiveListings, {
@@ -229,37 +206,34 @@ test("getInactiveListings returns empty results when landlord search has no matc
 test("bulkReviveListings revives inactive listings, ignores email failure, and reports failures", async () => {
   const adminController = loadAdminController();
 
-  const savedIds = [];
+  const updatedIds = [];
   const emailedIds = [];
   const listingsById = {
     "507f1f77bcf86cd799439011": {
-      _id: "507f1f77bcf86cd799439011",
+      id: "507f1f77bcf86cd799439011",
       name: "Revive me",
       status: "inactive",
-      user: { _id: "user_1", email: "owner1@example.com" },
-      async save() {
-        savedIds.push(this._id);
-      },
+      userId: "user_1",
+      user: { username: "owner1", email: "owner1@example.com" },
     },
     "507f1f77bcf86cd799439012": {
-      _id: "507f1f77bcf86cd799439012",
+      id: "507f1f77bcf86cd799439012",
       name: "Already active",
       status: "active",
-      user: { _id: "user_2" },
-      async save() {
-        savedIds.push(this._id);
-      },
+      userId: "user_2",
+      user: { username: "owner2", email: null },
     },
   };
 
-  Listing.findById = (id) => ({
-    populate: async () => listingsById[id] || null,
-  });
-
-  Listing.countDocuments = async ({ user }) => (user === "user_1" ? 0 : 1);
+  prisma.listing.findUnique = async ({ where }) => listingsById[where.id] || null;
+  prisma.listing.count = async ({ where }) => (where.userId === "user_1" ? 0 : 1);
+  prisma.listing.update = async ({ where }) => {
+    updatedIds.push(where.id);
+    return { id: where.id };
+  };
   emailUtils.sendEmail = async ({ to }) => {
     emailedIds.push(to);
-    throw new Error("smtp down");
+    throw new Error("ses down");
   };
 
   const result = await invokeController(adminController.bulkReviveListings, {
@@ -285,19 +259,17 @@ test("bulkReviveListings revives inactive listings, ignores email failure, and r
       reason: "Listing not found",
     },
   ]);
-  assert.deepEqual(savedIds, ["507f1f77bcf86cd799439011"]);
+  assert.deepEqual(updatedIds, ["507f1f77bcf86cd799439011"]);
   assert.deepEqual(emailedIds, ["owner1@example.com"]);
 });
 
 test("bulkReviveListings rejects oversized batches", async () => {
   const adminController = loadAdminController();
 
-  let findByIdCalls = 0;
-  Listing.findById = () => {
-    findByIdCalls += 1;
-    return {
-      populate: async () => null,
-    };
+  let findUniqueCalls = 0;
+  prisma.listing.findUnique = async () => {
+    findUniqueCalls += 1;
+    return null;
   };
 
   const result = await invokeController(adminController.bulkReviveListings, {
@@ -310,7 +282,7 @@ test("bulkReviveListings rejects oversized batches", async () => {
   assert.equal(result.error.statusCode, 400);
   assert.equal(
     result.error.message,
-    "ids must contain at most 100 listings per request"
+    "Cannot revive more than 100 listings at once"
   );
-  assert.equal(findByIdCalls, 0);
+  assert.equal(findUniqueCalls, 0);
 });

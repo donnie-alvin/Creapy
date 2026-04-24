@@ -27,7 +27,7 @@ Amplify backend hosting expects the build output in the following structure:
 |---|---|
 | `NODE_ENV` | `development` or `production` runtime mode. **If not set to `development`, the backend defaults to production error handling - always set this explicitly in Amplify environment variables.** |
 | `PORT` | Port the API server listens on |
-| `MONGO_URI` | MongoDB connection string |
+| `DATABASE_URL` | Aurora PostgreSQL connection string (postgresql://user:pass@host:5432/creapy?schema=public) |
 | `JWT_SECRET` | Secret used to sign JWTs |
 | `JWT_EXPIRES_IN` | JWT expiration window (e.g. `30d`) |
 | `MONETIZATION_MODE` | Monetization mode flag (default `LANDLORD_PAID`) |
@@ -38,19 +38,32 @@ Amplify backend hosting expects the build output in the following structure:
 | `PAYNOW_RETURN_URL` | Must be the Amplify frontend URL + `/payment-complete` |
 | `LISTING_FEE_AMOUNT` | Per-listing activation fee amount |
 | `TENANT_PREMIUM_AMOUNT` | Tenant premium subscription amount |
-| `SMTP_HOST` | SMTP host for transactional email |
-| `SMTP_PORT` | SMTP port |
-| `SMTP_USER` | SMTP username |
-| `SMTP_PASS` | SMTP password |
-| `SMTP_SECURE` | `true` for TLS-enabled SMTP |
 | `EMAIL_FROM` | From address for outbound emails |
-| `R2_ACCOUNT_ID` | Cloudflare R2 account ID |
-| `R2_ACCESS_KEY_ID` | Cloudflare R2 access key ID |
-| `R2_SECRET_ACCESS_KEY` | Cloudflare R2 secret access key |
-| `R2_BUCKET` | Cloudflare R2 bucket name |
-| `R2_PUBLIC_BASE_URL` | Public base URL for stored assets |
+| `AWS_REGION` | AWS region for SES and default backend AWS service clients |
+| `S3_BUCKET` | Amazon S3 bucket name for stored assets |
+| `S3_REGION` | AWS region that hosts the S3 bucket |
+| `S3_PUBLIC_BASE_URL` | Public base URL used when serving uploaded assets |
+| `S3_ACCESS_KEY_ID` | Optional local-development AWS access key for S3 when not using an IAM role |
+| `S3_SECRET_ACCESS_KEY` | Optional local-development AWS secret key for S3 when not using an IAM role |
 | `FRONTEND_URL` | Must be the Amplify frontend origin (no path) |
 | `SEED_API_BASE` | Optional base URL for `npm run seed` when seeding a deployed backend |
+
+### IAM role permissions (Amplify backend)
+
+Grant the Amplify backend runtime IAM role permission to:
+
+- Send email through Amazon SES from the configured `EMAIL_FROM` identity.
+- Read and write objects in the configured `S3_BUCKET`.
+- List the configured `S3_BUCKET` when the storage workflow needs bucket-level checks.
+
+Avoid static AWS keys in Amplify. Prefer the Amplify backend runtime IAM role for SES and S3 access, and reserve `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` for local development only.
+
+### Aurora PostgreSQL Setup
+
+1. Create an Aurora PostgreSQL Serverless v2 cluster in AWS RDS.
+2. Set database name `creapy`, note the cluster endpoint.
+3. Set `DATABASE_URL` in Amplify environment variables.
+4. Add `npx prisma migrate deploy && npx prisma generate` to the Amplify build command before `npm start`.
 
 ## Frontend environment variables
 

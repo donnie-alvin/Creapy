@@ -99,6 +99,8 @@ async function run(state, api, assert, test) {
     assert(status === 200, `expected 200, got ${status}`);
     assert(body && Array.isArray(body.data), 'expected body.data array');
     assert(body.data.some((item) => item.type === 'listing_fee'), 'expected listing_fee payment');
+    const listingFeePayment = body.data.find((item) => item.type === 'listing_fee');
+    assert(listingFeePayment && listingFeePayment.listing && listingFeePayment.listing._id, 'expected listing._id on listing_fee payment');
   });
 
   await test('GET /payments/mine as tenant', async () => {

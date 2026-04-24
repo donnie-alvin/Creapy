@@ -3,16 +3,20 @@ const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { MONETIZATION_MODE } = require('../utils/monetization');
 
-const r2 = new S3Client({
-  region: 'auto',
-  endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-  credentials: {
-    accessKeyId: process.env.R2_ACCESS_KEY_ID,
-    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
-  },
-});
+const s3ClientConfig = {
+  region: process.env.S3_REGION || process.env.AWS_REGION,
+};
 
-exports.getR2SignedUploadUrl = async (req, res, next) => {
+if (process.env.S3_ACCESS_KEY_ID && process.env.S3_SECRET_ACCESS_KEY) {
+  s3ClientConfig.credentials = {
+    accessKeyId: process.env.S3_ACCESS_KEY_ID,
+    secretAccessKey: process.env.S3_SECRET_ACCESS_KEY,
+  };
+}
+
+const s3 = new S3Client(s3ClientConfig);
+
+exports.getSignedUploadUrl = async (req, res, next) => {
   try {
     const { contentType, folder = 'uploads' } = req.query;
     const normalizedFolder = String(folder || "uploads").toLowerCase();
@@ -40,14 +44,14 @@ exports.getR2SignedUploadUrl = async (req, res, next) => {
     const key = `${normalizedFolder}/${userId}/${Date.now()}-${random}.${ext}`;
 
     const command = new PutObjectCommand({
-      Bucket: process.env.R2_BUCKET,
+      Bucket: process.env.S3_BUCKET,
       Key: key,
       ContentType: contentType,
     });
 
-    const uploadUrl = await getSignedUrl(r2, command, { expiresIn: 60 }); // 60 seconds
+    const uploadUrl = await getSignedUrl(s3, command, { expiresIn: 60 }); // 60 seconds
 
-    const publicUrl = `${process.env.R2_PUBLIC_BASE_URL.replace(/\/$/, '')}/${key}`;
+    const publicUrl = `${process.env.S3_PUBLIC_BASE_URL.replace(/\/$/, '')}/${key}`;
 
     return res.status(200).json({
       status: 'success',

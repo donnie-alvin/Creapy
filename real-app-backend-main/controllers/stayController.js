@@ -1,13 +1,7 @@
-const mongoose = require("mongoose");
 const catchAsync = require("../utils/catchAsync");
 const AppError = require("../utils/appError");
-const User = require("../models/userModel");
+const prisma = require("../utils/prisma");
 const { resolvePrice } = require("../utils/pricingResolver");
-const Room = require("../models/roomModel");
-const Booking = require("../models/bookingModel");
-const BlockedDate = require("../models/blockedDateModel");
-
-const isValidObjectId = (value) => mongoose.Types.ObjectId.isValid(value);
 
 const parseDate = (value, label) => {
   if (value == null || value === "") {
@@ -23,12 +17,14 @@ const parseDate = (value, label) => {
   return parsed;
 };
 
-const buildOverlapCondition = (startDate, endDate, fieldPairs) => ({
-  $or: fieldPairs.map(([startField, endField]) => ({
-    [startField]: { $lt: endDate },
-    [endField]: { $gt: startDate },
-  })),
-});
+const mapId = (record) => {
+  if (!record) {
+    return record;
+  }
+
+  record._id = record.id;
+  return record;
+};
 
 const decorateStay = (room, checkIn, checkOut) => {
   const stay = room.toObject ? room.toObject() : room;
@@ -58,6 +54,53 @@ const AMENITY_LABEL_TO_FLAG = {
   "Family Friendly": "familyFriendly",
 };
 
+const matchesLocation = (providerProfile, location) => {
+  if (!location) {
+    return true;
+  }
+
+  const normalized = location.toLowerCase();
+  return (
+    providerProfile?.location?.province?.toLowerCase?.().includes(normalized) ||
+    providerProfile?.location?.city?.toLowerCase?.().includes(normalized)
+  );
+};
+
+const matchesAmenityFilters = (room, reqQuery) => {
+  const amenityLabels = Array.isArray(reqQuery.amenities)
+    ? reqQuery.amenities
+    : typeof reqQuery.amenities === "string" && reqQuery.amenities.trim()
+      ? [reqQuery.amenities]
+      : [];
+
+  const requiredFlags = new Set();
+
+  amenityLabels.forEach((label) => {
+    const flag = AMENITY_LABEL_TO_FLAG[label];
+
+    if (flag) {
+      requiredFlags.add(flag);
+    }
+  });
+
+  [
+    "wifi",
+    "breakfast",
+    "parking",
+    "pool",
+    "aircon",
+    "conferenceRoom",
+    "airportPickup",
+    "familyFriendly",
+  ].forEach((flag) => {
+    if (reqQuery[flag] === "true") {
+      requiredFlags.add(flag);
+    }
+  });
+
+  return [...requiredFlags].every((flag) => room.amenities?.[flag] === true);
+};
+
 exports.searchStays = catchAsync(async (req, res, next) => {
   const checkIn = parseDate(req.query.checkIn, "checkIn");
   const checkOut = parseDate(req.query.checkOut, "checkOut");
@@ -65,134 +108,97 @@ exports.searchStays = catchAsync(async (req, res, next) => {
     return next(new AppError("Valid checkIn and checkOut are required together", 400));
   }
 
-  const approvedProviderFilter = {
-    role: "provider",
-    "providerProfile.verificationStatus": "approved",
-  };
-
-  let providers = await User.find(approvedProviderFilter).select("_id");
-
-  if (req.query.businessType) {
-    providers = await User.find({
-      ...approvedProviderFilter,
-      "providerProfile.businessType": req.query.businessType,
-    }).select("_id");
-  }
+  const providers = await prisma.user.findMany({
+    where: { role: "provider" },
+  });
 
   const location = req.query.location?.trim();
-  if (location) {
-    const locationRegex = new RegExp(location, "i");
-    providers = await User.find({
-      ...approvedProviderFilter,
-      ...(req.query.businessType
-        ? { "providerProfile.businessType": req.query.businessType }
-        : {}),
-      $or: [
-        { "providerProfile.location.province": locationRegex },
-        { "providerProfile.location.city": locationRegex },
-      ],
-    }).select("_id");
-  }
+  const filteredProviders = providers.filter((user) => {
+    if (user.providerProfile?.verificationStatus !== "approved") {
+      return false;
+    }
 
-  const approvedProviderIds = providers.map((provider) => provider._id);
+    if (
+      req.query.businessType &&
+      user.providerProfile?.businessType !== req.query.businessType
+    ) {
+      return false;
+    }
+
+    return matchesLocation(user.providerProfile, location);
+  });
+
+  const approvedProviderIds = filteredProviders.map((user) => user.id);
 
   let rooms = [];
 
   if (approvedProviderIds.length) {
-    const roomFilter = {
-      provider: { $in: approvedProviderIds },
-      status: "available",
-    };
-
-    if (req.query.guests) {
-      roomFilter.capacity = { $gte: Number(req.query.guests) };
-    }
-
     const minPrice = Number.parseFloat(req.query.minPrice);
     const maxPrice = Number.parseFloat(req.query.maxPrice);
+    const basePricePerNight = {};
 
-    if (Number.isFinite(minPrice) || Number.isFinite(maxPrice)) {
-      roomFilter.basePricePerNight = {};
-
-      if (Number.isFinite(minPrice)) {
-        roomFilter.basePricePerNight.$gte = minPrice;
-      }
-
-      if (Number.isFinite(maxPrice)) {
-        roomFilter.basePricePerNight.$lte = maxPrice;
-      }
+    if (Number.isFinite(minPrice)) {
+      basePricePerNight.gte = minPrice;
     }
 
-    if (req.query.bookingMode) {
-      roomFilter.bookingMode = req.query.bookingMode;
+    if (Number.isFinite(maxPrice)) {
+      basePricePerNight.lte = maxPrice;
     }
 
-    const amenityLabels = Array.isArray(req.query.amenities)
-      ? req.query.amenities
-      : typeof req.query.amenities === "string" && req.query.amenities.trim()
-        ? [req.query.amenities]
-        : [];
-
-    amenityLabels.forEach((label) => {
-      const flag = AMENITY_LABEL_TO_FLAG[label];
-
-      if (flag) {
-        roomFilter[`amenities.${flag}`] = true;
-      }
+    rooms = await prisma.room.findMany({
+      where: {
+        providerId: { in: approvedProviderIds },
+        status: "available",
+        ...(req.query.guests ? { capacity: { gte: Number(req.query.guests) } } : {}),
+        ...(Object.keys(basePricePerNight).length ? { basePricePerNight } : {}),
+        ...(req.query.bookingMode ? { bookingMode: req.query.bookingMode } : {}),
+      },
+      include: {
+        provider: {
+          select: {
+            id: true,
+            providerProfile: true,
+          },
+        },
+      },
     });
 
-    [
-      "wifi",
-      "breakfast",
-      "parking",
-      "pool",
-      "aircon",
-      "conferenceRoom",
-      "airportPickup",
-      "familyFriendly",
-    ].forEach((flag) => {
-      if (req.query[flag] === "true") {
-        roomFilter[`amenities.${flag}`] = true;
-      }
-    });
-
-    rooms = await Room.find(roomFilter).populate(
-      "provider",
-      "providerProfile.businessName providerProfile.businessType providerProfile.location providerProfile.checkInTime providerProfile.checkOutTime"
-    );
+    rooms = rooms.filter((room) => matchesAmenityFilters(room, req.query));
   }
 
   if (checkIn && checkOut && rooms.length) {
-    const roomIds = rooms.map((room) => room._id);
-    const bookingOverlap = buildOverlapCondition(checkIn, checkOut, [
-      ["checkIn", "checkOut"],
-      ["startDate", "endDate"],
-      ["from", "to"],
-    ]);
-    const blockedOverlap = buildOverlapCondition(checkIn, checkOut, [
-      ["startDate", "endDate"],
-      ["checkIn", "checkOut"],
-      ["from", "to"],
-    ]);
+    const roomIds = rooms.map((room) => room.id);
 
     const [bookings, blockedDates] = await Promise.all([
-      Booking.find({
-        room: { $in: roomIds },
-        status: { $in: ["confirmed", "pending_confirmation"] },
-        ...bookingOverlap,
-      }).lean(),
-      BlockedDate.find({
-        room: { $in: roomIds },
-        ...blockedOverlap,
-      }).lean(),
+      prisma.booking.findMany({
+        where: {
+          roomId: { in: roomIds },
+          status: { in: ["confirmed", "pending_confirmation"] },
+          checkIn: { lt: checkOut },
+          checkOut: { gt: checkIn },
+        },
+      }),
+      prisma.blockedDate.findMany({
+        where: {
+          roomId: { in: roomIds },
+          startDate: { lt: checkOut },
+          endDate: { gt: checkIn },
+        },
+      }),
     ]);
 
-    const unavailableRoomIds = new Set(
-      [...bookings, ...blockedDates].map((item) => item.room?.toString()).filter(Boolean)
-    );
+    const unavailableRoomIds = new Set([
+      ...bookings.map((booking) => booking.roomId),
+      ...blockedDates.map((blockedDate) => blockedDate.roomId),
+    ]);
 
-    rooms = rooms.filter((room) => !unavailableRoomIds.has(room._id.toString()));
+    rooms = rooms.filter((room) => !unavailableRoomIds.has(room.id));
   }
+
+  rooms.forEach((room) => {
+    mapId(room);
+    mapId(room.provider);
+  });
 
   const stays = rooms.map((room) => decorateStay(room, checkIn, checkOut));
 
@@ -208,31 +214,47 @@ exports.searchStays = catchAsync(async (req, res, next) => {
 exports.getProviderStays = catchAsync(async (req, res, next) => {
   const providerId = req.params.providerId;
 
-  if (!isValidObjectId(providerId)) {
-    return next(new AppError("Invalid provider id", 400));
-  }
+  const provider = await prisma.user.findUnique({
+    where: { id: providerId },
+    select: { id: true, providerProfile: true },
+  });
 
-  const provider = await User.findById(providerId).select("providerProfile");
   if (!provider || provider.providerProfile?.verificationStatus !== "approved") {
     return next(new AppError("Provider not approved", 404));
   }
 
-  const rooms = await Room.find({
-    provider: provider._id,
-    status: "available",
-  })
-    .populate(
-      "provider",
-      "providerProfile.businessName providerProfile.businessType providerProfile.location providerProfile.checkInTime providerProfile.checkOutTime"
-    )
-    .sort("-createdAt");
+  mapId(provider);
+
+  const rooms = await prisma.room.findMany({
+    where: {
+      providerId: provider.id,
+      status: "available",
+    },
+    include: {
+      provider: {
+        select: {
+          id: true,
+          providerProfile: true,
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  rooms.forEach((room) => {
+    mapId(room);
+    mapId(room.provider);
+  });
 
   const decoratedRooms = rooms.map((room) => decorateStay(room));
 
   res.status(200).json({
     status: "success",
     data: {
-      provider: provider.providerProfile,
+      provider: {
+        ...provider.providerProfile,
+        _id: provider.id,
+      },
       rooms: decoratedRooms,
     },
   });

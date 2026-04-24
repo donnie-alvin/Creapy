@@ -7,6 +7,6 @@ const router = express.Router();
 router.use(authController.protect);
 
 // signed upload url
-router.get('/r2-sign', uploadController.getR2SignedUploadUrl);
+router.get('/r2-sign', uploadController.getSignedUploadUrl);
 
 module.exports = router;

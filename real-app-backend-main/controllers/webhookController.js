@@ -1,6 +1,4 @@
-const Payment = require("../models/paymentModel");
-const Listing = require("../models/listingModel");
-const User = require("../models/userModel");
+const prisma = require("../utils/prisma");
 const { getProvider } = require("../utils/paymentProvider");
 const { sendEmail } = require("../utils/email");
 const {
@@ -9,49 +7,7 @@ const {
   bookingPaymentSuccessGuest,
   bookingPaymentSuccessProvider,
 } = require("../utils/emailTemplates/stayEmails");
-const mongoose = require("mongoose");
 
-const objectId = mongoose.Schema.Types.ObjectId;
-
-const getModel = (name, schemaDefinition) => {
-  if (mongoose.models[name]) {
-    return mongoose.models[name];
-  }
-
-  return mongoose.model(
-    name,
-    new mongoose.Schema(schemaDefinition, {
-      timestamps: true,
-      strict: false,
-    })
-  );
-};
-
-const Room = getModel("Room", {
-  provider: {
-    type: objectId,
-    ref: "User",
-    required: true,
-  },
-});
-
-const Booking = getModel("Booking", {
-  room: {
-    type: objectId,
-    ref: "Room",
-    required: true,
-  },
-  status: {
-    type: String,
-    default: "pending",
-  },
-  paymentStatus: {
-    type: String,
-    default: "unpaid",
-  },
-});
-
-// Successful payment statuses from Paynow (normalized to lowercase)
 const SUCCESSFUL_STATUSES = ["paid"];
 
 const sendEmailSafe = async (payload) => {
@@ -68,161 +24,191 @@ const sendEmailSafe = async (payload) => {
 
 exports.handlePaynowWebhook = async (req, res) => {
   try {
-    // Step 1 — Verify hash
     const provider = getProvider();
     const result = await provider.verifyWebhook(req.body);
     if (!result.valid) {
       return res.status(200).json({ status: "ignored", reason: "invalid hash" });
     }
 
-    // Step 2 — Check provider status (Comment 1: normalized to lowercase by provider)
-    // Only process as success if provider reports successful status
     if (!SUCCESSFUL_STATUSES.includes(result.status)) {
       try {
-        // Log non-success status for operational visibility
         console.log(
           `[webhook] Non-success status for transactionRef=${result.transactionRef}: status=${result.status}`
         );
-        // Mark payment as failed but don't set webhookVerified to allow potential retries
-        await Payment.findOneAndUpdate(
-          { transactionRef: result.transactionRef },
-          { status: "failed" },
-          { new: true }
-        );
+        await prisma.payment.updateMany({
+          where: { transactionRef: result.transactionRef },
+          data: { status: "failed" },
+        });
       } catch (logErr) {
         console.log("[webhook] Error marking failed payment:", logErr.message);
       }
       return res.status(200).json({ status: "ok" });
     }
 
-    // Step 3 — Atomic idempotency claim
-    // Claim succeeds only once for a given transactionRef when webhookVerified is false.
-    const claimedPayment = await Payment.findOneAndUpdate(
-      { transactionRef: result.transactionRef, webhookVerified: false },
-      { $set: { webhookVerified: true, status: "success" } },
-      { new: true }
-    );
+    const updateResult = await prisma.payment.updateMany({
+      where: {
+        transactionRef: result.transactionRef,
+        webhookVerified: false,
+      },
+      data: {
+        webhookVerified: true,
+        status: "success",
+      },
+    });
 
-    if (!claimedPayment) {
-      // Unknown transactionRef or already processed; both are safe no-ops.
+    if (updateResult.count === 0) {
       return res.status(200).json({ status: "ok", reason: "already processed" });
     }
 
-    // Step 6 — Apply side effects only after successful atomic claim
-    // Defer payment finalization until after side effects (Comment 3)
+    const claimedPayment = await prisma.payment.findFirst({
+      where: { transactionRef: result.transactionRef },
+    });
+
+    if (!claimedPayment) {
+      return res.status(200).json({ status: "ok", reason: "payment missing" });
+    }
+
     try {
-      // Step 6a — listing_fee side-effect
       if (claimedPayment.type === "listing_fee") {
         if (
           req.query?.earlyAccess === "true" &&
           process.env.PAYMENT_PROVIDER !== "paynow"
         ) {
-          await Listing.findByIdAndUpdate(claimedPayment.listing, {
-            status: "early_access",
-            earlyAccessUntil: new Date(
-              Date.now() + 7 * 24 * 60 * 60 * 1000
-            ),
-            paymentDeadline: null,
+          await prisma.listing.update({
+            where: { id: claimedPayment.listingId },
+            data: {
+              status: "early_access",
+              earlyAccessUntil: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+              paymentDeadline: null,
+            },
           });
         } else {
-          await Listing.findByIdAndUpdate(claimedPayment.listing, {
-            status: "active",
-            paymentDeadline: null,
+          await prisma.listing.update({
+            where: { id: claimedPayment.listingId },
+            data: {
+              status: "active",
+              paymentDeadline: null,
+            },
           });
         }
       }
 
-      // Step 6b — premium_subscription side-effect
       if (claimedPayment.type === "premium_subscription") {
-        const user = await User.findById(claimedPayment.user);
+        const user = await prisma.user.findUnique({
+          where: { id: claimedPayment.userId },
+        });
         const base =
           user.premiumExpiry && user.premiumExpiry > new Date()
             ? user.premiumExpiry
             : new Date();
-        await User.findByIdAndUpdate(claimedPayment.user, {
-          premiumExpiry: new Date(base.getTime() + 30 * 24 * 60 * 60 * 1000),
+
+        await prisma.user.update({
+          where: { id: claimedPayment.userId },
+          data: {
+            premiumExpiry: new Date(base.getTime() + 30 * 24 * 60 * 60 * 1000),
+          },
         });
       }
 
       if (claimedPayment.type === "booking_payment") {
-        const booking = await Booking.findById(claimedPayment.booking).populate("room");
+        const booking = await prisma.booking.findUnique({
+          where: { id: claimedPayment.bookingId },
+          include: { room: true },
+        });
 
         if (!booking) {
           throw new Error("Booking not found");
         }
 
-        booking.paymentStatus = "paid";
         const shouldConfirmInstantBooking =
-          booking.status === "payment_pending" && booking.room.bookingMode === "instant";
+          ["pending_payment", "payment_pending"].includes(booking.status) &&
+          booking.room.bookingMode === "instant";
 
-        if (shouldConfirmInstantBooking) {
-          booking.status = "confirmed";
+        const updatedBooking = await prisma.booking.update({
+          where: { id: booking.id },
+          data: {
+            paymentStatus: "paid",
+            ...(shouldConfirmInstantBooking ? { status: "confirmed" } : {}),
+          },
+          include: { room: true },
+        });
+
+        updatedBooking._id = updatedBooking.id;
+        updatedBooking.room._id = updatedBooking.room.id;
+
+        const guest = await prisma.user.findUnique({
+          where: { id: updatedBooking.guestId },
+          select: { id: true, email: true, username: true },
+        });
+        const bookingProvider = await prisma.user.findUnique({
+          where: { id: updatedBooking.room.providerId },
+          select: { id: true, email: true, providerProfile: true },
+        });
+
+        if (guest) {
+          guest._id = guest.id;
         }
-        await booking.save();
 
-        const guest = await User.findById(booking.guest).select("email username");
-        const provider = await User.findById(booking.room.provider).select(
-          "email businessName providerProfile"
-        );
+        if (bookingProvider) {
+          bookingProvider._id = bookingProvider.id;
+        }
 
         void sendEmailSafe(
           bookingPaymentSuccessGuest({
-            booking,
-            room: booking.room,
+            booking: updatedBooking,
+            room: updatedBooking.room,
             guest,
-            provider,
+            provider: bookingProvider,
           })
         );
         void sendEmailSafe(
           bookingPaymentSuccessProvider({
-            booking,
-            room: booking.room,
+            booking: updatedBooking,
+            room: updatedBooking.room,
             guest,
-            provider,
+            provider: bookingProvider,
           })
         );
 
         if (shouldConfirmInstantBooking) {
           void sendEmailSafe(
             bookingConfirmedInstantGuest({
-              booking,
-              room: booking.room,
+              booking: updatedBooking,
+              room: updatedBooking.room,
               guest,
-              provider,
+              provider: bookingProvider,
             })
           );
           void sendEmailSafe(
             bookingConfirmedInstantProvider({
-              booking,
-              room: booking.room,
+              booking: updatedBooking,
+              room: updatedBooking.room,
               guest,
-              provider,
+              provider: bookingProvider,
             })
           );
         }
       }
 
-      // Step 7 — Respond OK after all side effects succeed
       return res.status(200).json({ status: "ok" });
     } catch (sideEffectErr) {
-      // If side effects fail, reset the atomic claim to allow retry (Comment 3)
       console.log(
         `[webhook] Side effect error for transactionRef=${result.transactionRef}: ${sideEffectErr.message}`
       );
       try {
-        await Payment.findByIdAndUpdate(claimedPayment._id, {
-          webhookVerified: false,
-          status: "pending",
+        await prisma.payment.update({
+          where: { id: claimedPayment.id },
+          data: {
+            webhookVerified: false,
+            status: "pending",
+          },
         });
       } catch (resetErr) {
         console.log("[webhook] Error resetting webhook claim:", resetErr.message);
       }
-      // Always return HTTP 200 to avoid triggering Paynow retries unnecessarily,
-      // but the payment remains in pending state for manual or automatic retry
       return res.status(200).json({ status: "error" });
     }
   } catch (err) {
-    // Catch all errors and respond HTTP 200 to prevent Paynow retries
     console.log("[webhook] Unexpected error:", err.message);
     return res.status(200).json({ status: "error" });
   }

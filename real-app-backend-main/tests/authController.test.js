@@ -3,24 +3,25 @@ const assert = require("node:assert/strict");
 const jwt = require("jsonwebtoken");
 
 const emailUtils = require("../utils/email");
-const Listing = require("../models/listingModel");
-const User = require("../models/userModel");
+const prisma = require("../utils/prisma");
 
 const originalSendEmail = emailUtils.sendEmail;
+const originalPrisma = {
+  listingFindUnique: prisma.listing.findUnique,
+  userCreate: prisma.user.create,
+  userDelete: prisma.user.delete,
+  userFindFirst: prisma.user.findFirst,
+  userFindUnique: prisma.user.findUnique,
+  userUpdate: prisma.user.update,
+};
 
 const loadAuthController = () => {
   delete require.cache[require.resolve("../controllers/authController")];
   return require("../controllers/authController");
 };
 
-const originalListingFindById = Listing.findById;
-const originalUserFindById = User.findById;
-const originalUserFindOne = User.findOne;
-const originalUserDeleteOne = User.deleteOne;
-const originalUserSave = User.prototype.save;
-
 const invokeController = (handler, req = {}) =>
-  new Promise((resolve, reject) => {
+  new Promise((resolve) => {
     const res = {
       statusCode: 200,
       body: null,
@@ -51,18 +52,20 @@ test.before(() => {
 
 test.afterEach(() => {
   emailUtils.sendEmail = originalSendEmail;
-  Listing.findById = originalListingFindById;
-  User.findById = originalUserFindById;
-  User.findOne = originalUserFindOne;
-  User.deleteOne = originalUserDeleteOne;
-  User.prototype.save = originalUserSave;
+  prisma.listing.findUnique = originalPrisma.listingFindUnique;
+  prisma.user.create = originalPrisma.userCreate;
+  prisma.user.delete = originalPrisma.userDelete;
+  prisma.user.findFirst = originalPrisma.userFindFirst;
+  prisma.user.findUnique = originalPrisma.userFindUnique;
+  prisma.user.update = originalPrisma.userUpdate;
+  delete process.env.SKIP_EMAIL_VERIFICATION;
 });
 
 test("getUser returns a public-safe payload for anonymous viewers", async () => {
   const authController = loadAuthController();
-  Listing.findById = async () => ({ user: "owner-1" });
-  User.findById = async () => ({
-    _id: "owner-1",
+  prisma.listing.findUnique = async () => ({ id: "listing-1", userId: "owner-1" });
+  prisma.user.findUnique = async () => ({
+    id: "owner-1",
     username: "landlord",
     avatar: "avatar.png",
     role: "landlord",
@@ -71,9 +74,6 @@ test("getUser returns a public-safe payload for anonymous viewers", async () => 
     nationalId: "63-123456-A-12",
     emailVerificationToken: "secret",
     emailVerificationExpires: new Date(),
-    toObject() {
-      return { ...this };
-    },
   });
 
   const result = await invokeController(authController.getUser, {
@@ -94,23 +94,20 @@ test("getUser returns a public-safe payload for anonymous viewers", async () => 
 
 test("getUser includes contact details only when auth context is present", async () => {
   const authController = loadAuthController();
-  Listing.findById = async () => ({ user: "owner-1" });
-  User.findById = async () => ({
-    _id: "owner-1",
+  prisma.listing.findUnique = async () => ({ id: "listing-1", userId: "owner-1" });
+  prisma.user.findUnique = async () => ({
+    id: "owner-1",
     username: "landlord",
     avatar: "avatar.png",
     role: "landlord",
     email: "owner@example.com",
     phoneNumber: "+263771234567",
     nationalId: "63-123456-A-12",
-    toObject() {
-      return { ...this };
-    },
   });
 
   const result = await invokeController(authController.getUser, {
     params: { id: "listing-1" },
-    user: { _id: "viewer-1" },
+    user: { id: "viewer-1" },
   });
 
   assert.equal(result.statusCode, 200);
@@ -123,19 +120,19 @@ test("signup removes a newly created user if verification email delivery fails",
   let deletedFilter = null;
 
   emailUtils.sendEmail = async () => {
-    throw new Error("smtp down");
+    throw new Error("ses down");
   };
 
   const authController = loadAuthController();
 
-  User.prototype.save = async function () {
-    this._id = "new-user-id";
-    return this;
-  };
+  prisma.user.create = async ({ data }) => ({
+    id: "new-user-id",
+    ...data,
+  });
 
-  User.deleteOne = async (filter) => {
-    deletedFilter = filter;
-    return { deletedCount: 1 };
+  prisma.user.delete = async ({ where }) => {
+    deletedFilter = where;
+    return { id: where.id };
   };
 
   const result = await invokeController(authController.signup, {
@@ -155,28 +152,18 @@ test("signup removes a newly created user if verification email delivery fails",
     result.error.message,
     "We couldn't send the verification email. Please try signing up again."
   );
-  assert.ok(deletedFilter && deletedFilter._id);
+  assert.deepEqual(deletedFilter, { id: "new-user-id" });
 });
 
-test("login backfills legacy users without verification metadata and allows access", async () => {
+test("login allows verified legacy-compatible users to access the API", async () => {
   const authController = loadAuthController();
-  let saveCalled = false;
-  const user = {
-    _id: "legacy-1",
+  prisma.user.findUnique = async () => ({
+    id: "legacy-1",
     email: "legacy@example.com",
-    password: "hashed-password",
-    isEmailVerified: undefined,
-    emailVerificationToken: null,
-    emailVerificationExpires: null,
-    correctPassword: async () => true,
-    backfillEmailVerificationStatus: User.prototype.backfillEmailVerificationStatus,
-    async save() {
-      saveCalled = true;
-      return this;
-    },
-  };
-
-  User.findOne = async () => user;
+    password:
+      "$2a$12$eSWb0YLeBJ2rwbW5rsHJL.ue4SqeYpybOXnMwoDdYPSop4WPNStoO",
+    isEmailVerified: true,
+  });
 
   const result = await invokeController(authController.login, {
     body: {
@@ -186,30 +173,19 @@ test("login backfills legacy users without verification metadata and allows acce
   });
 
   assert.equal(result.statusCode, 200);
-  assert.equal(saveCalled, true);
-  assert.equal(user.isEmailVerified, true);
   assert.ok(result.body.token);
+  assert.equal(result.body.data.user._id, "legacy-1");
 });
 
-test("login blocks legacy users whose verification state backfills to unverified", async () => {
+test("login blocks users whose verification state is unverified", async () => {
   const authController = loadAuthController();
-  let saveCalled = false;
-  const user = {
-    _id: "legacy-2",
+  prisma.user.findUnique = async () => ({
+    id: "legacy-2",
     email: "pending@example.com",
-    password: "hashed-password",
-    isEmailVerified: undefined,
-    emailVerificationToken: "pending-token",
-    emailVerificationExpires: new Date(Date.now() + 60_000),
-    correctPassword: async () => true,
-    backfillEmailVerificationStatus: User.prototype.backfillEmailVerificationStatus,
-    async save() {
-      saveCalled = true;
-      return this;
-    },
-  };
-
-  User.findOne = async () => user;
+    password:
+      "$2a$12$eSWb0YLeBJ2rwbW5rsHJL.ue4SqeYpybOXnMwoDdYPSop4WPNStoO",
+    isEmailVerified: false,
+  });
 
   const result = await invokeController(authController.login, {
     body: {
@@ -219,8 +195,6 @@ test("login blocks legacy users whose verification state backfills to unverified
   });
 
   assert(result.error);
-  assert.equal(saveCalled, true);
-  assert.equal(user.isEmailVerified, false);
   assert.equal(result.error.statusCode, 403);
   assert.equal(result.error.message, "Please verify your email before logging in");
 });
@@ -228,25 +202,32 @@ test("login blocks legacy users whose verification state backfills to unverified
 test("verifyEmail returns a login-shaped success response for valid tokens", async () => {
   const authController = loadAuthController();
   let queriedFilter = null;
-  let saveOptions = null;
-  const user = {
-    _id: "verified-user-1",
-    username: "verified-user",
-    email: "verified@example.com",
-    role: "tenant",
-    password: "hashed-password",
-    isEmailVerified: false,
-    emailVerificationToken: "stored-token",
-    emailVerificationExpires: new Date(Date.now() + 60_000),
-    async save(options) {
-      saveOptions = options;
-      return this;
-    },
+  let updateArgs = null;
+
+  prisma.user.findFirst = async (query) => {
+    queriedFilter = query.where;
+    return {
+      id: "verified-user-1",
+      username: "verified-user",
+      email: "verified@example.com",
+      role: "tenant",
+      password: "hashed-password",
+      isEmailVerified: false,
+    };
   };
 
-  User.findOne = async (filter) => {
-    queriedFilter = filter;
-    return user;
+  prisma.user.update = async (args) => {
+    updateArgs = args;
+    return {
+      id: "verified-user-1",
+      username: "verified-user",
+      email: "verified@example.com",
+      role: "tenant",
+      password: "hashed-password",
+      isEmailVerified: true,
+      emailVerificationToken: null,
+      emailVerificationExpires: null,
+    };
   };
 
   const result = await invokeController(authController.verifyEmail, {
@@ -258,20 +239,20 @@ test("verifyEmail returns a login-shaped success response for valid tokens", asy
   assert.ok(result.body.token);
   assert.ok(result.body.data.user);
   assert.equal(result.body.data.user._id, "verified-user-1");
-  assert.equal(user.isEmailVerified, true);
-  assert.equal(user.emailVerificationToken, null);
-  assert.equal(user.emailVerificationExpires, null);
-  assert.deepEqual(saveOptions, { validateBeforeSave: false });
+  assert.equal(updateArgs.where.id, "verified-user-1");
+  assert.equal(updateArgs.data.isEmailVerified, true);
+  assert.equal(updateArgs.data.emailVerificationToken, null);
+  assert.equal(updateArgs.data.emailVerificationExpires, null);
   assert.ok(queriedFilter);
   assert.ok(queriedFilter.emailVerificationToken);
-  assert.ok(queriedFilter.emailVerificationExpires.$gt instanceof Date);
+  assert.ok(queriedFilter.emailVerificationExpires.gt instanceof Date);
   assert.equal(jwt.verify(result.body.token, process.env.JWT_SECRET).id, "verified-user-1");
 });
 
 test("verifyEmail preserves invalid or expired token errors", async () => {
   const authController = loadAuthController();
 
-  User.findOne = async () => null;
+  prisma.user.findFirst = async () => null;
 
   const result = await invokeController(authController.verifyEmail, {
     query: { token: "expired-or-invalid-token" },
@@ -284,23 +265,28 @@ test("verifyEmail preserves invalid or expired token errors", async () => {
 
 test("google marks existing unverified users as verified before issuing a token", async () => {
   const authController = loadAuthController();
-  let saveOptions = null;
-  let saveCallCount = 0;
-  const user = {
-    _id: "google-user-1",
+  let updateArgs = null;
+
+  prisma.user.findUnique = async () => ({
+    id: "google-user-1",
     email: "google@example.com",
     username: "existing-user",
     role: "tenant",
     password: "hashed-password",
-    isEmailVerified: undefined,
-    async save(options) {
-      saveCallCount += 1;
-      saveOptions = options;
-      return this;
-    },
-  };
+    isEmailVerified: false,
+  });
 
-  User.findOne = async () => user;
+  prisma.user.update = async (args) => {
+    updateArgs = args;
+    return {
+      id: "google-user-1",
+      email: "google@example.com",
+      username: "existing-user",
+      role: "tenant",
+      password: "hashed-password",
+      isEmailVerified: true,
+    };
+  };
 
   const result = await invokeController(authController.google, {
     body: {
@@ -311,30 +297,31 @@ test("google marks existing unverified users as verified before issuing a token"
   });
 
   assert.equal(result.statusCode, 200);
-  assert.equal(user.isEmailVerified, true);
-  assert.equal(saveCallCount, 1);
-  assert.deepEqual(saveOptions, { validateBeforeSave: false });
+  assert.deepEqual(updateArgs, {
+    where: { id: "google-user-1" },
+    data: { isEmailVerified: true },
+  });
   assert.ok(result.body.token);
   assert.equal(result.body.data.user._id, "google-user-1");
 });
 
 test("google does not re-save existing users that are already verified", async () => {
   const authController = loadAuthController();
-  let saveCallCount = 0;
-  const user = {
-    _id: "google-user-2",
+  let updateCalled = false;
+
+  prisma.user.findUnique = async () => ({
+    id: "google-user-2",
     email: "verified-google@example.com",
     username: "verified-user",
     role: "tenant",
     password: "hashed-password",
     isEmailVerified: true,
-    async save() {
-      saveCallCount += 1;
-      return this;
-    },
-  };
+  });
 
-  User.findOne = async () => user;
+  prisma.user.update = async () => {
+    updateCalled = true;
+    throw new Error("should not update verified user");
+  };
 
   const result = await invokeController(authController.google, {
     body: {
@@ -345,8 +332,7 @@ test("google does not re-save existing users that are already verified", async (
   });
 
   assert.equal(result.statusCode, 200);
-  assert.equal(user.isEmailVerified, true);
-  assert.equal(saveCallCount, 0);
+  assert.equal(updateCalled, false);
   assert.ok(result.body.token);
   assert.equal(result.body.data.user._id, "google-user-2");
 });

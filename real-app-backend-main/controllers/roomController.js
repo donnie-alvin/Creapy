@@ -1,13 +1,8 @@
-const mongoose = require("mongoose");
 const catchAsync = require("../utils/catchAsync");
 const AppError = require("../utils/appError");
-const Room = require("../models/roomModel");
-const Booking = require("../models/bookingModel");
-const BlockedDate = require("../models/blockedDateModel");
+const prisma = require("../utils/prisma");
 
 const AVAILABILITY_BOOKING_STATUSES = ["confirmed", "pending_confirmation"];
-
-const isValidObjectId = (value) => mongoose.Types.ObjectId.isValid(value);
 
 const parseRequiredDate = (value, label) => {
   const parsed = new Date(value);
@@ -19,37 +14,62 @@ const parseRequiredDate = (value, label) => {
   return parsed;
 };
 
-const ensureProviderOwnsRoom = async (roomId, userId) => {
-  if (!isValidObjectId(roomId)) {
-    throw new AppError("Invalid room id", 400);
+const getUserId = (user) => user?.id || user?._id?.toString();
+
+const mapId = (record) => {
+  if (!record) {
+    return record;
   }
 
-  const room = await Room.findById(roomId);
+  record._id = record.id;
+  return record;
+};
+
+const ensureProviderOwnsRoom = async (roomId, userId) => {
+  const room = await prisma.room.findUnique({ where: { id: roomId } });
+
   if (!room) {
     throw new AppError("Room not found", 404);
   }
 
-  if (!room.provider || !room.provider.equals(userId)) {
+  if (room.providerId !== userId.toString()) {
     throw new AppError("You do not own this room", 403);
   }
 
   return room;
 };
 
-const buildOverlapQuery = (startField, endField, from, to) => ({
-  [startField]: { $lt: to },
-  [endField]: { $gt: from },
-});
-
 exports.createRoom = catchAsync(async (req, res, next) => {
   if (req.user?.providerProfile?.verificationStatus !== "approved") {
     return next(new AppError("Provider verification required", 403));
   }
 
-  const room = await Room.create({
-    ...req.body,
-    provider: req.user._id,
+  const input = { ...req.body };
+  delete input.provider;
+  delete input.providerProfile;
+  delete input._id;
+  delete input.id;
+
+  const room = await prisma.room.create({
+    data: {
+      name: input.name,
+      description: input.description,
+      roomType: input.roomType,
+      capacity: input.capacity,
+      basePricePerNight: input.basePricePerNight,
+      pricingRules: input.pricingRules,
+      amenities: input.amenities,
+      imageUrls: input.imageUrls,
+      status: input.status,
+      bookingMode: input.bookingMode,
+      maxAdvanceBookingDays: input.maxAdvanceBookingDays,
+      cancellationPolicy: input.cancellationPolicy,
+      cancellationPolicyCustomText: input.cancellationPolicyCustomText,
+      providerId: getUserId(req.user),
+    },
   });
+
+  mapId(room);
 
   res.status(201).json({
     status: "success",
@@ -60,7 +80,12 @@ exports.createRoom = catchAsync(async (req, res, next) => {
 });
 
 exports.getMyRooms = catchAsync(async (req, res) => {
-  const rooms = await Room.find({ provider: req.user._id }).sort("-createdAt");
+  const rooms = await prisma.room.findMany({
+    where: { providerId: getUserId(req.user) },
+    orderBy: { createdAt: "desc" },
+  });
+
+  rooms.forEach(mapId);
 
   res.status(200).json({
     status: "success",
@@ -71,19 +96,22 @@ exports.getMyRooms = catchAsync(async (req, res) => {
   });
 });
 
-exports.updateRoom = catchAsync(async (req, res, next) => {
-  const room = await ensureProviderOwnsRoom(req.params.id, req.user._id);
-
-  if (Object.prototype.hasOwnProperty.call(req.body, "status")) {
-    return next(new AppError("status cannot be updated via this endpoint", 400));
-  }
+exports.updateRoom = catchAsync(async (req, res) => {
+  await ensureProviderOwnsRoom(req.params.id, getUserId(req.user));
 
   const updates = { ...req.body };
   delete updates.provider;
   delete updates.providerProfile;
+  delete updates.providerId;
+  delete updates._id;
+  delete updates.id;
 
-  Object.assign(room, updates);
-  await room.save();
+  const room = await prisma.room.update({
+    where: { id: req.params.id },
+    data: updates,
+  });
+
+  mapId(room);
 
   res.status(200).json({
     status: "success",
@@ -93,11 +121,13 @@ exports.updateRoom = catchAsync(async (req, res, next) => {
   });
 });
 
-exports.deleteRoom = catchAsync(async (req, res, next) => {
-  const room = await ensureProviderOwnsRoom(req.params.id, req.user._id);
+exports.deleteRoom = catchAsync(async (req, res) => {
+  await ensureProviderOwnsRoom(req.params.id, getUserId(req.user));
 
-  room.status = "inactive";
-  await room.save();
+  await prisma.room.update({
+    where: { id: req.params.id },
+    data: { status: "inactive" },
+  });
 
   res.status(204).json({
     status: "success",
@@ -106,7 +136,7 @@ exports.deleteRoom = catchAsync(async (req, res, next) => {
 });
 
 exports.createRoomBlock = catchAsync(async (req, res, next) => {
-  await ensureProviderOwnsRoom(req.params.id, req.user._id);
+  await ensureProviderOwnsRoom(req.params.id, getUserId(req.user));
 
   const startDate = parseRequiredDate(req.body.startDate, "startDate");
   const endDate = parseRequiredDate(req.body.endDate, "endDate");
@@ -115,13 +145,17 @@ exports.createRoomBlock = catchAsync(async (req, res, next) => {
     return next(new AppError("startDate must be before endDate", 400));
   }
 
-  const blockedDate = await BlockedDate.create({
-    room: req.params.id,
-    provider: req.user._id,
-    startDate,
-    endDate,
-    reason: req.body.reason || "",
+  const blockedDate = await prisma.blockedDate.create({
+    data: {
+      roomId: req.params.id,
+      providerId: getUserId(req.user),
+      startDate,
+      endDate,
+      reason: req.body.reason || "",
+    },
   });
+
+  mapId(blockedDate);
 
   res.status(201).json({
     status: "success",
@@ -132,20 +166,22 @@ exports.createRoomBlock = catchAsync(async (req, res, next) => {
 });
 
 exports.deleteRoomBlock = catchAsync(async (req, res, next) => {
-  await ensureProviderOwnsRoom(req.params.id, req.user._id);
+  await ensureProviderOwnsRoom(req.params.id, getUserId(req.user));
 
-  if (!isValidObjectId(req.params.blockId)) {
-    return next(new AppError("Invalid block id", 400));
-  }
-
-  const deletedBlock = await BlockedDate.findOneAndDelete({
-    _id: req.params.blockId,
-    room: req.params.id,
+  const blockedDate = await prisma.blockedDate.findFirst({
+    where: {
+      id: req.params.blockId,
+      roomId: req.params.id,
+    },
   });
 
-  if (!deletedBlock) {
+  if (!blockedDate) {
     return next(new AppError("Blocked date not found", 404));
   }
+
+  await prisma.blockedDate.delete({
+    where: { id: req.params.blockId },
+  });
 
   res.status(204).json({
     status: "success",
@@ -154,11 +190,11 @@ exports.deleteRoomBlock = catchAsync(async (req, res, next) => {
 });
 
 exports.getRoomAvailability = catchAsync(async (req, res, next) => {
-  if (!isValidObjectId(req.params.id)) {
-    return next(new AppError("Invalid room id", 400));
-  }
+  const room = await prisma.room.findUnique({
+    where: { id: req.params.id },
+    select: { id: true },
+  });
 
-  const room = await Room.findById(req.params.id).select("_id");
   if (!room) {
     return next(new AppError("Room not found", 404));
   }
@@ -171,19 +207,25 @@ exports.getRoomAvailability = catchAsync(async (req, res, next) => {
   }
 
   const [bookings, blockedDates] = await Promise.all([
-    Booking.find({
-      room: req.params.id,
-      status: { $in: AVAILABILITY_BOOKING_STATUSES },
-      ...buildOverlapQuery("checkIn", "checkOut", from, to),
-    })
-      .select("checkIn checkOut")
-      .sort("checkIn"),
-    BlockedDate.find({
-      room: req.params.id,
-      ...buildOverlapQuery("startDate", "endDate", from, to),
-    })
-      .select("startDate endDate reason")
-      .sort("startDate"),
+    prisma.booking.findMany({
+      where: {
+        roomId: req.params.id,
+        status: { in: AVAILABILITY_BOOKING_STATUSES },
+        checkIn: { lt: to },
+        checkOut: { gt: from },
+      },
+      select: { checkIn: true, checkOut: true },
+      orderBy: { checkIn: "asc" },
+    }),
+    prisma.blockedDate.findMany({
+      where: {
+        roomId: req.params.id,
+        startDate: { lt: to },
+        endDate: { gt: from },
+      },
+      select: { startDate: true, endDate: true, reason: true },
+      orderBy: { startDate: "asc" },
+    }),
   ]);
 
   res.status(200).json({

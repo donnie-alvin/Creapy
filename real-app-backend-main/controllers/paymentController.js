@@ -1,51 +1,60 @@
 const catchAsync = require("../utils/catchAsync");
 const AppError = require("../utils/appError");
-const Payment = require("../models/paymentModel");
-const Listing = require("../models/listingModel");
+const prisma = require("../utils/prisma");
 const { getProvider } = require("../utils/paymentProvider");
+
+const getUserId = (user) => user?.id || user?._id?.toString();
+
+const mapId = (record) => {
+  if (!record) {
+    return record;
+  }
+
+  record._id = record.id;
+  return record;
+};
 
 exports.initiateListingFee = catchAsync(async (req, res, next) => {
   const { listingId, phone } = req.body;
 
-  // Find listing
-  const listing = await Listing.findById(listingId);
+  const listing = await prisma.listing.findUnique({ where: { id: listingId } });
   if (!listing) {
     return next(new AppError("Listing not found", 404));
   }
 
-  // Check ownership
-  if (listing.user.toString() !== req.user._id.toString()) {
+  if (listing.userId !== getUserId(req.user).toString()) {
     return next(new AppError("Forbidden", 403));
   }
 
-  // Check status
   if (!["pending_payment", "inactive", "active"].includes(listing.status)) {
     return next(new AppError("Listing is not awaiting payment", 400));
   }
 
-  // Get provider and initiate payment
+  listing._id = listing.id;
+
   const provider = getProvider();
   const result = await provider.initiateListingFee(listing, {
-    ...req.user.toObject(),
+    ...req.user,
+    _id: getUserId(req.user),
     phone,
   });
 
-  // Create payment record
-  const payment = await Payment.create({
-    type: "listing_fee",
-    listing: listing._id,
-    user: req.user._id,
-    transactionRef: result.transactionRef,
-    status: "pending",
-    method: "paynow",
-    amount: parseFloat(process.env.LISTING_FEE_AMOUNT) || 0,
+  await prisma.payment.create({
+    data: {
+      type: "listing_fee",
+      listingId: listing.id,
+      userId: getUserId(req.user),
+      transactionRef: result.transactionRef,
+      status: "pending",
+      method: "paynow",
+      amount: parseFloat(process.env.LISTING_FEE_AMOUNT) || 0,
+    },
   });
 
-  await Listing.findByIdAndUpdate(
-    listing._id,
-    { status: "pending_payment" },
-    { new: false }
-  );
+  await prisma.listing.update({
+    where: { id: listing.id },
+    data: { status: "pending_payment" },
+  });
 
   res.status(201).json({
     status: "success",
@@ -56,24 +65,25 @@ exports.initiateListingFee = catchAsync(async (req, res, next) => {
   });
 });
 
-exports.initiateTenantPremium = catchAsync(async (req, res, next) => {
+exports.initiateTenantPremium = catchAsync(async (req, res) => {
   const { phone } = req.body;
 
-  // Get provider and initiate payment
   const provider = getProvider();
   const result = await provider.initiatePremiumSubscription({
-    ...req.user.toObject(),
+    ...req.user,
+    _id: getUserId(req.user),
     phone,
   });
 
-  // Create payment record
-  const payment = await Payment.create({
-    type: "premium_subscription",
-    user: req.user._id,
-    transactionRef: result.transactionRef,
-    status: "pending",
-    method: "paynow",
-    amount: parseFloat(process.env.TENANT_PREMIUM_AMOUNT) || 0,
+  await prisma.payment.create({
+    data: {
+      type: "premium_subscription",
+      userId: getUserId(req.user),
+      transactionRef: result.transactionRef,
+      status: "pending",
+      method: "paynow",
+      amount: parseFloat(process.env.TENANT_PREMIUM_AMOUNT) || 0,
+    },
   });
 
   res.status(201).json({
@@ -85,10 +95,25 @@ exports.initiateTenantPremium = catchAsync(async (req, res, next) => {
   });
 });
 
-exports.getMyPayments = catchAsync(async (req, res, next) => {
-  const payments = await Payment.find({ user: req.user._id })
-    .sort({ createdAt: -1 })
-    .populate("listing", "name status");
+exports.getMyPayments = catchAsync(async (req, res) => {
+  const payments = await prisma.payment.findMany({
+    where: { userId: getUserId(req.user) },
+    orderBy: { createdAt: "desc" },
+    include: {
+      listing: {
+        select: {
+          id: true,
+          name: true,
+          status: true,
+        },
+      },
+    },
+  });
+
+  payments.forEach((payment) => {
+    mapId(payment);
+    mapId(payment.listing);
+  });
 
   res.status(200).json({
     status: "success",

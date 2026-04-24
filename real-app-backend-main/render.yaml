@@ -9,7 +9,7 @@ services:
     name: creapy-backend
     env: node
     rootDir: real-app-backend-main
-    buildCommand: npm install
+    buildCommand: npm install && npx prisma generate && npx prisma migrate deploy
     startCommand: npm start
     envVars:
       - key: NODE_ENV
@@ -17,8 +17,6 @@ services:
         sync: false
       - key: PORT
         value: "5000"
-        sync: false
-      - key: MONGO_URI
         sync: false
       - key: JWT_SECRET
         sync: false
@@ -41,27 +39,25 @@ services:
         sync: false
       - key: TENANT_PREMIUM_AMOUNT
         sync: false
-      - key: SMTP_HOST
+      - key: DATABASE_URL
         sync: false
-      - key: SMTP_PORT
+      - key: AWS_REGION
         sync: false
-      - key: SMTP_USER
+      - key: S3_BUCKET
         sync: false
-      - key: SMTP_PASS
+      - key: S3_REGION
         sync: false
-      - key: SMTP_SECURE
+      - key: S3_PUBLIC_BASE_URL
+        sync: false
+      - key: S3_ACCESS_KEY_ID # optional; omit when using IAM role
+        sync: false
+      - key: S3_SECRET_ACCESS_KEY # optional; omit when using IAM role
+        sync: false
+      - key: APP_BASE_URL
+        sync: false
+      - key: SKIP_EMAIL_VERIFICATION
         sync: false
       - key: EMAIL_FROM
-        sync: false
-      - key: R2_ACCOUNT_ID
-        sync: false
-      - key: R2_ACCESS_KEY_ID
-        sync: false
-      - key: R2_SECRET_ACCESS_KEY
-        sync: false
-      - key: R2_BUCKET
-        sync: false
-      - key: R2_PUBLIC_BASE_URL
         sync: false
       - key: FRONTEND_URL
         # Set to your Amplify frontend URL, e.g. https://<branch>.<appid>.amplifyapp.com

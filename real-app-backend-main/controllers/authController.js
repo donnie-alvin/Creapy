@@ -5,8 +5,8 @@ const bcrypt = require("bcryptjs");
 // Custom Imports
 const AppError = require("../utils/appError");
 const catchAsync = require("../utils/catchAsync");
-const User = require("../models/userModel");
-const Listing = require("../models/listingModel");
+const prisma = require("../utils/prisma");
+const { comparePassword } = require("../utils/auth");
 const { isPremiumTenant } = require("../utils/monetization");
 const { sendEmail } = require("../utils/email");
 
@@ -52,9 +52,9 @@ const sendVerificationEmail = async (user, rawToken) => {
 };
 
 const buildPublicUserPayload = (user, { includeContactDetails = false } = {}) => {
-  const source = user?.toObject ? user.toObject() : user;
+  const source = user;
   const payload = {
-    _id: source._id,
+    _id: source.id,
     username: source.username,
     avatar: source.avatar,
     role: source.role,
@@ -68,17 +68,20 @@ const buildPublicUserPayload = (user, { includeContactDetails = false } = {}) =>
   return payload;
 };
 
-const createSendToken = (user, statusCode, res) => {
-  const token = signToken(user._id);
+const buildAuthUserPayload = (user) => ({
+  ...user,
+  _id: user.id,
+});
 
-  // Remove password from output
-  user.password = undefined;
+const createSendToken = (user, statusCode, res) => {
+  const token = signToken(user.id);
+  const { password, ...sanitizedUser } = user;
 
   res.status(statusCode).json({
     status: "success",
     token,
     data: {
-      user,
+      user: buildAuthUserPayload(sanitizedUser),
     },
   });
 };
@@ -98,32 +101,33 @@ exports.signup = catchAsync(async (req, res, next) => {
   }
 
   const verification = createEmailVerificationToken();
-
-  const newUser = new User({
-    username,
-    email,
-    password,
-    ...(role ? { role } : {}),
-    ...(phoneNumber ? { phoneNumber } : {}),
-    ...(nationalId ? { nationalId } : {}),
-    isEmailVerified: false,
-    emailVerificationToken: verification.hashedToken,
-    emailVerificationExpires: verification.expiresAt,
+  const newUser = await prisma.user.create({
+    data: {
+      username,
+      email,
+      password: await bcrypt.hash(password, 12),
+      ...(role ? { role } : {}),
+      ...(phoneNumber ? { phoneNumber } : {}),
+      ...(nationalId ? { nationalId } : {}),
+      isEmailVerified: false,
+      emailVerificationToken: verification.hashedToken,
+      emailVerificationExpires: new Date(verification.expiresAt),
+    },
   });
 
-  await newUser.save();
-
   if (process.env.SKIP_EMAIL_VERIFICATION === "true") {
-    newUser.isEmailVerified = true;
-    await newUser.save({ validateBeforeSave: false });
-    createSendToken(newUser, 201, res);
+    const verifiedUser = await prisma.user.update({
+      where: { id: newUser.id },
+      data: { isEmailVerified: true },
+    });
+    createSendToken(verifiedUser, 201, res);
     return;
   }
 
   try {
     await sendVerificationEmail(newUser, verification.rawToken);
   } catch (error) {
-    await User.deleteOne({ _id: newUser._id });
+    await prisma.user.delete({ where: { id: newUser.id } });
 
     return next(
       new AppError(
@@ -139,7 +143,7 @@ exports.signup = catchAsync(async (req, res, next) => {
     status: "pending_verification",
     message: "Account created. Please check your email to verify your account.",
     data: {
-      user: newUser,
+      user: buildAuthUserPayload(newUser),
     },
   });
 });
@@ -154,16 +158,14 @@ exports.login = catchAsync(async (req, res, next) => {
   }
 
   // 2) Check if user exists
-  const user = await User.findOne({ email });
+  const user = await prisma.user.findUnique({ where: { email } });
   if (!user) return next(new AppError("User not found", 404));
 
   // 3) Check if password is correct
-  const correct = await user.correctPassword(password, user.password);
+  const correct = await comparePassword(password, user.password);
   if (!correct) {
     return next(new AppError("Incorrect password", 401));
   }
-
-  await user.backfillEmailVerificationStatus();
 
   if (user.isEmailVerified !== true) {
     return next(new AppError("Please verify your email before logging in", 403));
@@ -182,30 +184,40 @@ exports.verifyEmail = catchAsync(async (req, res, next) => {
 
   const hashedToken = hashVerificationToken(rawToken.toString());
 
-  const user = await User.findOne({
-    emailVerificationToken: hashedToken,
-    emailVerificationExpires: { $gt: new Date() },
+  const user = await prisma.user.findFirst({
+    where: {
+      emailVerificationToken: hashedToken,
+      emailVerificationExpires: { gt: new Date() },
+    },
   });
 
   if (!user) {
     return next(new AppError("Verification link is invalid or has expired", 400));
   }
 
-  user.isEmailVerified = true;
-  user.emailVerificationToken = null;
-  user.emailVerificationExpires = null;
-  await user.save({ validateBeforeSave: false });
+  const verifiedUser = await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      isEmailVerified: true,
+      emailVerificationToken: null,
+      emailVerificationExpires: null,
+    },
+  });
 
-  createSendToken(user, 200, res);
+  createSendToken(verifiedUser, 200, res);
 });
 
 exports.getUser = catchAsync(async (req, res, next) => {
-  const listing = await Listing.findById(req.params.id);
+  const listing = await prisma.listing.findUnique({
+    where: { id: req.params.id },
+  });
   if (!listing) {
     return next(new AppError("No listing found with that ID", 404));
   }
 
-  const user = await User.findById(listing.user);
+  const user = await prisma.user.findUnique({
+    where: { id: listing.userId },
+  });
   if (!user) {
     return next(new AppError("No user found with that ID", 404));
   }
@@ -222,7 +234,7 @@ exports.update = catchAsync(async (req, res, next) => {
   const { username, email, password, avatar } = req.body.payload;
 
   // 1) Check if user exists
-  const user = await User.findById(req.params.id);
+  const user = await prisma.user.findUnique({ where: { id: req.params.id } });
   if (!user) {
     return next(new AppError("No user found with that ID", 404));
   }
@@ -231,19 +243,15 @@ exports.update = catchAsync(async (req, res, next) => {
   const hashedPassword = await bcrypt.hash(password, 12);
 
   // 3) Update user
-  const newUser = await User.findByIdAndUpdate(
-    req.params.id,
-    {
+  const newUser = await prisma.user.update({
+    where: { id: req.params.id },
+    data: {
       username,
       email,
       password: hashedPassword,
       avatar,
     },
-    {
-      new: true,
-      runValidators: true,
-    }
-  );
+  });
 
   // 4) If everything ok, send token to client
   createSendToken(newUser, 200, res);
@@ -254,29 +262,32 @@ exports.getMe = catchAsync(async (req, res, next) => {
     return next(new AppError("Not authenticated", 401));
   }
 
-  const user = await User.findById(req.user._id);
+  const user = await prisma.user.findUnique({ where: { id: req.user.id } });
   if (!user) {
     return next(new AppError("No user found with that ID", 404));
   }
 
-  user.password = undefined;
+  delete user.password;
 
   res.status(200).json({
     status: "success",
     data: {
-      user,
+      user: {
+        ...user,
+        _id: user.id,
+      },
     },
   });
 });
 
 exports.delete = catchAsync(async (req, res, next) => {
   // 1) Find User
-  const user = await User.findById(req.params.id);
+  const user = await prisma.user.findUnique({ where: { id: req.params.id } });
   if (!user) {
     return next(new AppError("No user found with that ID", 404));
   }
   // 2) Delete User
-  await User.findByIdAndDelete(req.params.id);
+  await prisma.user.delete({ where: { id: req.params.id } });
 
   // 3) If everything ok, send token to client
   res.status(204).json({
@@ -288,24 +299,27 @@ exports.delete = catchAsync(async (req, res, next) => {
 exports.google = catchAsync(async (req, res, next) => {
   const { name, email, photo } = req.body;
 
-  const user = await User.findOne({ email });
+  const user = await prisma.user.findUnique({ where: { email } });
 
   if (user) {
+    let currentUser = user;
     if (user.isEmailVerified !== true) {
-      user.isEmailVerified = true;
-      await user.save({ validateBeforeSave: false });
+      currentUser = await prisma.user.update({
+        where: { id: user.id },
+        data: { isEmailVerified: true },
+      });
     }
     // just return the user
-    createSendToken(user, 200, res);
+    createSendToken(currentUser, 200, res);
   } else {
-    const password = await bcrypt.hash(Math.random().toString(), 12);
-
-    const newUser = await User.create({
-      username: name,
-      email,
-      password,
-      avatar: photo,
-      isEmailVerified: true,
+    const newUser = await prisma.user.create({
+      data: {
+        username: name,
+        email,
+        password: await bcrypt.hash(Math.random().toString(), 12),
+        avatar: photo,
+        isEmailVerified: true,
+      },
     });
 
     createSendToken(newUser, 201, res);
@@ -332,7 +346,7 @@ exports.optionalAuth = catchAsync(async (req, res, next) => {
     const decode = await promisify(jwt.verify)(token, process.env.JWT_SECRET);
 
     // 3) Check if user still exists
-    const freshUser = await User.findById(decode.id);
+    const freshUser = await prisma.user.findUnique({ where: { id: decode.id } });
     if (freshUser) {
       // GRANT ACCESS WITH USER CONTEXT
       req.user = freshUser;
@@ -364,7 +378,7 @@ exports.protect = catchAsync(async (req, res, next) => {
   const decode = await promisify(jwt.verify)(token, process.env.JWT_SECRET);
 
   // 3) Check if user still exists
-  const freshUser = await User.findById(decode.id);
+  const freshUser = await prisma.user.findUnique({ where: { id: decode.id } });
   if (!freshUser) {
     return next(
       new AppError(

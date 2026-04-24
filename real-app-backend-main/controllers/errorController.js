@@ -15,6 +15,18 @@ const handleDuplicateFieldsDB = (err) => {
   return new AppError(message, 400);
 };
 
+const handlePrismaDuplicateFieldsDB = (err) => {
+  const target = Array.isArray(err.meta?.target) ? err.meta.target : [];
+  const field = target[0];
+  const message =
+    field === "email"
+      ? "Email already in use"
+      : field
+        ? `Duplicate field value: "${field}". Please use another value!`
+        : "Duplicate field value. Please use another value!";
+  return new AppError(message, 400);
+};
+
 const handleValidationErrorDB = (err) => {
   const errors = Object.values(err.errors).map((el) => el.message);
 
@@ -62,6 +74,7 @@ module.exports = (err, req, res, next) => {
   err.status = err.status || "error";
 
   if (err.code === 11000) err = handleDuplicateFieldsDB(err);
+  if (err.code === "P2002") err = handlePrismaDuplicateFieldsDB(err);
   if (err.name === "CastError") err = handleCastErrorDB(err);
   if (err.name === "ValidationError") err = handleValidationErrorDB(err);
   if (err.name === "JsonWebTokenError") err = handleJWTError();
