@@ -9,6 +9,7 @@ const prisma = require("../utils/prisma");
 const { comparePassword } = require("../utils/auth");
 const { isPremiumTenant } = require("../utils/monetization");
 const { sendEmail } = require("../utils/email");
+const { sendSms } = require("../utils/sms");
 
 const signToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
@@ -27,6 +28,19 @@ const createEmailVerificationToken = () => {
     expiresAt: Date.now() + 24 * 60 * 60 * 1000,
   };
 };
+
+const generatePhoneOtp = () => {
+  const rawOtp = String(Math.floor(100000 + Math.random() * 900000));
+  const hashedOtp = crypto.createHash("sha256").update(rawOtp).digest("hex");
+
+  return {
+    rawOtp,
+    hashedOtp,
+    expiresAt: Date.now() + 10 * 60 * 1000,
+  };
+};
+
+const phoneOtpResendAttempts = new Map();
 
 const getAppBaseUrl = () => {
   const configuredBaseUrl =
@@ -69,8 +83,23 @@ const buildPublicUserPayload = (user, { includeContactDetails = false } = {}) =>
 };
 
 const buildAuthUserPayload = (user) => ({
-  ...user,
   _id: user.id,
+  username: user.username,
+  email: user.email,
+  avatar: user.avatar,
+  role: user.role,
+  phoneNumber: user.phoneNumber || null,
+  isEmailVerified: Boolean(user.isEmailVerified),
+  isPhoneVerified: Boolean(user.isPhoneVerified),
+  premiumExpiry: user.premiumExpiry || null,
+  createdAt: user.createdAt || null,
+  updatedAt: user.updatedAt || null,
+});
+
+const buildPendingVerificationUserPayload = (user) => ({
+  ...buildPublicUserPayload(user, { includeContactDetails: true }),
+  isEmailVerified: Boolean(user.isEmailVerified),
+  isPhoneVerified: Boolean(user.isPhoneVerified),
 });
 
 const createSendToken = (user, statusCode, res) => {
@@ -116,6 +145,32 @@ exports.signup = catchAsync(async (req, res, next) => {
   });
 
   if (process.env.SKIP_EMAIL_VERIFICATION === "true") {
+    if (newUser.role === "landlord") {
+      const phoneVerification = generatePhoneOtp();
+      const verifiedUser = await prisma.user.update({
+        where: { id: newUser.id },
+        data: {
+          isEmailVerified: true,
+          phoneOtp: phoneVerification.hashedOtp,
+          phoneOtpExpires: new Date(phoneVerification.expiresAt),
+        },
+      });
+
+      await sendSms({
+        to: newUser.phoneNumber,
+        message: `Your Creapy verification code is ${phoneVerification.rawOtp}. It expires in 10 minutes.`,
+      });
+
+      res.status(201).json({
+        status: "pending_phone_verification",
+        message: "Account created. Please verify your phone number.",
+        data: {
+          user: buildPendingVerificationUserPayload(verifiedUser),
+        },
+      });
+      return;
+    }
+
     const verifiedUser = await prisma.user.update({
       where: { id: newUser.id },
       data: { isEmailVerified: true },
@@ -125,6 +180,23 @@ exports.signup = catchAsync(async (req, res, next) => {
   }
 
   try {
+    if (newUser.role === "landlord") {
+      const phoneVerification = generatePhoneOtp();
+
+      await prisma.user.update({
+        where: { id: newUser.id },
+        data: {
+          phoneOtp: phoneVerification.hashedOtp,
+          phoneOtpExpires: new Date(phoneVerification.expiresAt),
+        },
+      });
+
+      await sendSms({
+        to: newUser.phoneNumber,
+        message: `Your Creapy verification code is ${phoneVerification.rawOtp}. It expires in 10 minutes.`,
+      });
+    }
+
     await sendVerificationEmail(newUser, verification.rawToken);
   } catch (error) {
     await prisma.user.delete({ where: { id: newUser.id } });
@@ -143,7 +215,7 @@ exports.signup = catchAsync(async (req, res, next) => {
     status: "pending_verification",
     message: "Account created. Please check your email to verify your account.",
     data: {
-      user: buildAuthUserPayload(newUser),
+      user: buildPendingVerificationUserPayload(newUser),
     },
   });
 });
@@ -169,6 +241,10 @@ exports.login = catchAsync(async (req, res, next) => {
 
   if (user.isEmailVerified !== true) {
     return next(new AppError("Please verify your email before logging in", 403));
+  }
+
+  if (user.role === "landlord" && user.isPhoneVerified !== true) {
+    return next(new AppError("Please verify your phone number before logging in", 403));
   }
 
   // 4) If everything ok, send token to client
@@ -204,10 +280,20 @@ exports.verifyEmail = catchAsync(async (req, res, next) => {
     },
   });
 
+  if (verifiedUser.role === "landlord" && verifiedUser.isPhoneVerified !== true) {
+    return res.status(200).json({
+      status: "pending_phone_verification",
+      message: "Email verified. Please verify your phone number.",
+      data: {
+        user: buildPendingVerificationUserPayload(verifiedUser),
+      },
+    });
+  }
+
   createSendToken(verifiedUser, 200, res);
 });
 
-exports.getUser = catchAsync(async (req, res, next) => {
+exports.getUserByListingId = catchAsync(async (req, res, next) => {
   const listing = await prisma.listing.findUnique({
     where: { id: req.params.id },
   });
@@ -239,18 +325,21 @@ exports.update = catchAsync(async (req, res, next) => {
     return next(new AppError("No user found with that ID", 404));
   }
 
-  // 2) hash password
-  const hashedPassword = await bcrypt.hash(password, 12);
+  const data = {
+    username,
+    email,
+    avatar,
+  };
+
+  if (password && typeof password === "string" && password.length > 0) {
+    const hashedPassword = await bcrypt.hash(password, 12);
+    data.password = hashedPassword;
+  }
 
   // 3) Update user
   const newUser = await prisma.user.update({
     where: { id: req.params.id },
-    data: {
-      username,
-      email,
-      password: hashedPassword,
-      avatar,
-    },
+    data,
   });
 
   // 4) If everything ok, send token to client
@@ -267,15 +356,10 @@ exports.getMe = catchAsync(async (req, res, next) => {
     return next(new AppError("No user found with that ID", 404));
   }
 
-  delete user.password;
-
   res.status(200).json({
     status: "success",
     data: {
-      user: {
-        ...user,
-        _id: user.id,
-      },
+      user: buildAuthUserPayload(user),
     },
   });
 });
@@ -303,10 +387,10 @@ exports.google = catchAsync(async (req, res, next) => {
 
   if (user) {
     let currentUser = user;
-    if (user.isEmailVerified !== true) {
+    if (user.isEmailVerified !== true || user.isPhoneVerified !== true) {
       currentUser = await prisma.user.update({
         where: { id: user.id },
-        data: { isEmailVerified: true },
+        data: { isEmailVerified: true, isPhoneVerified: true },
       });
     }
     // just return the user
@@ -319,11 +403,135 @@ exports.google = catchAsync(async (req, res, next) => {
         password: await bcrypt.hash(Math.random().toString(), 12),
         avatar: photo,
         isEmailVerified: true,
+        isPhoneVerified: true,
       },
     });
 
     createSendToken(newUser, 201, res);
   }
+});
+
+exports.verifyPhone = catchAsync(async (req, res, next) => {
+  const { otp, email } = req.body;
+
+  if (!otp) {
+    return next(new AppError("OTP is required", 400));
+  }
+
+  if (!email) {
+    return next(new AppError("Email is required", 400));
+  }
+
+  if (!/^\d{6}$/.test(otp)) {
+    return next(new AppError("OTP must be a 6-digit number", 400));
+  }
+
+  const hashedOtp = crypto.createHash("sha256").update(otp).digest("hex");
+
+  const user = await prisma.user.findFirst({
+    where: {
+      email,
+      role: "landlord",
+      isEmailVerified: true,
+      isPhoneVerified: false,
+      phoneOtp: hashedOtp,
+      phoneOtpExpires: { gt: new Date() },
+    },
+  });
+
+  if (!user) {
+    return next(new AppError("OTP is invalid or has expired", 400));
+  }
+
+  const updatedUser = await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      isPhoneVerified: true,
+      phoneOtp: null,
+      phoneOtpExpires: null,
+    },
+  });
+
+  phoneOtpResendAttempts.delete(user.id);
+
+  createSendToken(updatedUser, 200, res);
+});
+
+exports.resendPhoneOtp = catchAsync(async (req, res, next) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return next(new AppError("Email is required", 400));
+  }
+
+  const user = await prisma.user.findUnique({ where: { email } });
+
+  if (!user) {
+    return next(new AppError("User not found", 404));
+  }
+
+  if (user.role !== "landlord" || user.isPhoneVerified === true) {
+    return next(new AppError("Phone OTP is only available for unverified landlords", 400));
+  }
+
+  if (!user.phoneNumber) {
+    return next(new AppError("No phone number on record for this account", 400));
+  }
+
+  const now = Date.now();
+  const oneHourAgo = now - 60 * 60 * 1000;
+  const existingOtpIssuedAt = user.phoneOtpExpires
+    ? user.phoneOtpExpires.getTime() - 10 * 60 * 1000
+    : null;
+
+  let resendWindow = phoneOtpResendAttempts.get(user.id);
+
+  if (
+    !resendWindow &&
+    existingOtpIssuedAt &&
+    existingOtpIssuedAt > oneHourAgo
+  ) {
+    resendWindow = {
+      count: 0,
+      windowStart: existingOtpIssuedAt,
+    };
+  }
+
+  if (!resendWindow || resendWindow.windowStart <= oneHourAgo) {
+    resendWindow = {
+      count: 0,
+      windowStart: now,
+    };
+  }
+
+  if (resendWindow.count >= 3) {
+    return next(new AppError("Too many OTP resend requests. Please try again later.", 429));
+  }
+
+  const phoneVerification = generatePhoneOtp();
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      phoneOtp: phoneVerification.hashedOtp,
+      phoneOtpExpires: new Date(phoneVerification.expiresAt),
+    },
+  });
+
+  await sendSms({
+    to: user.phoneNumber,
+    message: `Your Creapy verification code is ${phoneVerification.rawOtp}. It expires in 10 minutes.`,
+  });
+
+  phoneOtpResendAttempts.set(user.id, {
+    count: resendWindow.count + 1,
+    windowStart: resendWindow.windowStart,
+  });
+
+  res.status(200).json({
+    status: "success",
+    message: "OTP resent.",
+  });
 });
 
 exports.optionalAuth = catchAsync(async (req, res, next) => {

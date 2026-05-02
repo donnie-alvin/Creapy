@@ -1,5 +1,15 @@
 import { useMemo, useState } from "react";
-import { Box, Grid, FormControlLabel, Checkbox } from "@mui/material";
+import {
+  Box,
+  Checkbox,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+  FormControlLabel,
+  Grid,
+} from "@mui/material";
 
 import { Heading, SubHeading } from "../../components/Heading";
 import useTypedSelector from "../../hooks/useTypedSelector";
@@ -24,6 +34,10 @@ const SavedSearches = () => {
   const [createSavedSearch, { isLoading: creating }] =
     useCreateSavedSearchMutation();
   const [deleteSavedSearch] = useDeleteSavedSearchMutation();
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    searchId: string;
+  }>({ open: false, searchId: "" });
 
   const searches = useMemo(() => searchesData?.data || [], [searchesData]);
 
@@ -209,10 +223,9 @@ const SavedSearches = () => {
                 </Box>
                 <AppButton
                   variant="outlined"
-                  onClick={async () => {
-                    await deleteSavedSearch(s._id);
-                    await refetch();
-                  }}
+                  onClick={() =>
+                    setConfirmDialog({ open: true, searchId: s._id })
+                  }
                 >
                   Delete
                 </AppButton>
@@ -221,6 +234,33 @@ const SavedSearches = () => {
           )}
         </AppCard>
       </AppContainer>
+      <Dialog
+        open={confirmDialog.open}
+        onClose={() => setConfirmDialog({ open: false, searchId: "" })}
+      >
+        <DialogTitle>Remove Saved Search</DialogTitle>
+        <DialogContent>
+          <DialogContentText>Remove this saved search?</DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <AppButton
+            variant="outlined"
+            onClick={() => setConfirmDialog({ open: false, searchId: "" })}
+          >
+            Cancel
+          </AppButton>
+          <AppButton
+            color="error"
+            onClick={async () => {
+              await deleteSavedSearch(confirmDialog.searchId);
+              await refetch();
+              setConfirmDialog({ open: false, searchId: "" });
+            }}
+          >
+            Remove
+          </AppButton>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

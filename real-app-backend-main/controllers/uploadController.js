@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { MONETIZATION_MODE } = require('../utils/monetization');
+const AppError = require('../utils/appError');
 
 const s3ClientConfig = {
   region: process.env.S3_REGION || process.env.AWS_REGION,
@@ -50,6 +51,10 @@ exports.getSignedUploadUrl = async (req, res, next) => {
     });
 
     const uploadUrl = await getSignedUrl(s3, command, { expiresIn: 60 }); // 60 seconds
+
+    if (!process.env.S3_PUBLIC_BASE_URL) {
+      return next(new AppError('S3_PUBLIC_BASE_URL is not configured', 500));
+    }
 
     const publicUrl = `${process.env.S3_PUBLIC_BASE_URL.replace(/\/$/, '')}/${key}`;
 

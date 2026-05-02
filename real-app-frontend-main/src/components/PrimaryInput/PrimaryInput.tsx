@@ -32,6 +32,7 @@ interface PrimaryInputProps {
   loading?: boolean;
   borderRadius?: string;
   ref?: React.RefObject<HTMLInputElement>;
+  inputProps?: any;
 }
 
 const PrimaryInput: React.FC<PrimaryInputProps> = ({
@@ -60,6 +61,7 @@ const PrimaryInput: React.FC<PrimaryInputProps> = ({
   loading = false,
   borderRadius,
   ref,
+  inputProps,
 }) => {
   return (
     <TextField
@@ -142,6 +144,7 @@ const PrimaryInput: React.FC<PrimaryInputProps> = ({
         ),
         inputProps: {
           min: 0,
+          ...inputProps,
           // restrict user to type -
           onKeyDown: (event: any) => {
             if (event.key === "-" && type === "number") {

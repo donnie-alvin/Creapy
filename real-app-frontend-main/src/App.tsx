@@ -18,6 +18,7 @@ import TenantDashboard from "./views/Dashboard/Tenant";
 import ListingPayment from "./views/Dashboard/Payment";
 import AdminDashboard from "./views/Dashboard/Admin";
 import VerifyEmail from "./views/VerifyEmail";
+import VerifyPhone from "./views/VerifyPhone";
 import Stays from "./views/Stays";
 import StayRoomDetail from "./views/Stays/RoomDetail";
 import MyStayBookings from "./views/Stays/MyBookings";
@@ -53,6 +54,7 @@ function App() {
           }
         />
         <Route path="/verify-email" element={<VerifyEmail />} />
+        <Route path="/verify-phone" element={<VerifyPhone />} />
         <Route path="/" element={<Home />} />
         <Route path="/about" element={<About />} />
         <Route path="/search" element={<SearchPage />} />

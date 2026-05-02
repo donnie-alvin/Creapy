@@ -1,5 +1,16 @@
 import { useState } from "react";
-import { Box, Chip, Grid, Stack } from "@mui/material";
+import {
+  Box,
+  Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+  Grid,
+  Stack,
+  TextField,
+} from "@mui/material";
 import { Heading, SubHeading } from "../../components/Heading";
 import ToastAlert from "../../components/ToastAlert/ToastAlert";
 import AppContainer from "../../components/ui/AppContainer";
@@ -58,6 +69,11 @@ const MyBookings = () => {
     type: "success",
     message: "",
   });
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    booking: any | null;
+    reason: string;
+  }>({ open: false, booking: null, reason: "" });
 
   const handleCloseToast = () => {
     setToast((prev) => ({ ...prev, appearence: false }));
@@ -72,16 +88,22 @@ const MyBookings = () => {
   };
 
   const handleCancel = async (booking: any) => {
-    const reason = window.prompt("Cancellation reason?");
-    if (!reason) return;
+    setConfirmDialog({ open: true, booking, reason: "" });
+  };
+
+  const handleConfirmCancel = async () => {
+    if (!confirmDialog.booking || !confirmDialog.reason.trim()) {
+      return;
+    }
 
     try {
       await cancelBooking({
-        id: booking._id,
-        body: { reason },
+        id: confirmDialog.booking._id,
+        body: { reason: confirmDialog.reason },
       }).unwrap();
       showToast("success", "Booking cancelled successfully.");
       refetch();
+      setConfirmDialog({ open: false, booking: null, reason: "" });
     } catch (cancelError: any) {
       showToast(
         "error",
@@ -207,6 +229,43 @@ const MyBookings = () => {
         message={toast.message}
         handleClose={handleCloseToast}
       />
+      <Dialog
+        open={confirmDialog.open}
+        onClose={() => setConfirmDialog({ open: false, booking: null, reason: "" })}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>Cancel Booking</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 2 }}>Cancel this booking?</DialogContentText>
+          <TextField
+            fullWidth
+            multiline
+            minRows={3}
+            label="Cancellation reason"
+            required
+            value={confirmDialog.reason}
+            onChange={(e) =>
+              setConfirmDialog((prev) => ({ ...prev, reason: e.target.value }))
+            }
+          />
+        </DialogContent>
+        <DialogActions>
+          <AppButton
+            variant="outlined"
+            onClick={() => setConfirmDialog({ open: false, booking: null, reason: "" })}
+          >
+            Go Back
+          </AppButton>
+          <AppButton
+            color="error"
+            disabled={isCancelling || !confirmDialog.reason.trim()}
+            onClick={handleConfirmCancel}
+          >
+            Confirm Cancel
+          </AppButton>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

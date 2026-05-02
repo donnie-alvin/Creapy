@@ -177,12 +177,13 @@ export const providerApiSlice = apiSlice.injectEndpoints({
       ],
     }),
     cancelBooking: builder.mutation({
-      query: (bookingId) => ({
-        url: `bookings/${bookingId}/cancel`,
+      query: ({ id, body }) => ({
+        url: `bookings/${id}/cancel`,
         method: "POST",
+        body,
       }),
-      invalidatesTags: (result, error, bookingId) => [
-        { type: "ProviderBooking", id: bookingId },
+      invalidatesTags: (result, error, { id }) => [
+        { type: "ProviderBooking", id },
         { type: "ProviderBooking", id: "LIST" },
         { type: "ProviderSettlement", id: "SUMMARY" },
       ],

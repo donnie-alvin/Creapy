@@ -37,7 +37,16 @@ import {
   selectedUserToken,
 } from "../../redux/auth/authSlice";
 // MUI Imports
-import { Box, Grid, Tooltip } from "@mui/material";
+import {
+  Box,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+  Grid,
+  Tooltip,
+} from "@mui/material";
 import AppContainer from "../../components/ui/AppContainer";
 import AppCard from "../../components/ui/AppCard";
 import AppButton from "../../components/ui/AppButton";
@@ -86,6 +95,7 @@ const Profile = () => {
     appearence: false,
     type: "",
   });
+  const [confirmDialog, setConfirmDialog] = useState(false);
 
   useEffect(() => {
     if (file) {
@@ -414,7 +424,7 @@ const Profile = () => {
                             color="error"
                             disabled={deleteLoading}
                             startIcon={<MdOutlineDeleteSweep />}
-                            onClick={deleteHandler}
+                            onClick={() => setConfirmDialog(true)}
                           >
                             Delete Account
                           </AppButton>
@@ -434,6 +444,30 @@ const Profile = () => {
         message={toast.message}
         handleClose={handleCloseToast}
       />
+      <Dialog open={confirmDialog} onClose={() => setConfirmDialog(false)}>
+        <DialogTitle>Delete Account</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Permanently delete your account? All your data will be removed and
+            cannot be recovered.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <AppButton variant="outlined" onClick={() => setConfirmDialog(false)}>
+            Go Back
+          </AppButton>
+          <AppButton
+            color="error"
+            disabled={deleteLoading}
+            onClick={() => {
+              deleteHandler();
+              setConfirmDialog(false);
+            }}
+          >
+            Delete Account
+          </AppButton>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

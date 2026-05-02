@@ -20,6 +20,11 @@ const VerifyEmail = () => {
   });
 
   useEffect(() => {
+    if (data?.status === "pending_phone_verification") {
+      navigate("/verify-phone", { state: { email: data?.data?.user?.email } });
+      return;
+    }
+
     if (data?.status === "success" && data?.token) {
       dispatch(setUser(data));
       localStorage.setItem("user", JSON.stringify(data));

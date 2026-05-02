@@ -92,6 +92,11 @@ const SignUp = () => {
         return;
       }
 
+      if (user?.data?.status === "pending_phone_verification") {
+        navigate("/verify-phone", { state: { email: data.email } });
+        return;
+      }
+
       if (user?.data?.status) {
         setToast({
           ...toast,

@@ -17,6 +17,9 @@ model User {
   phoneNumber              String?
   nationalId               String?
   isEmailVerified          Boolean        @default(false)
+  isPhoneVerified          Boolean        @default(false)
+  phoneOtp                 String?
+  phoneOtpExpires          DateTime?
   emailVerificationToken   String?
   emailVerificationExpires DateTime?
   premiumExpiry            DateTime?

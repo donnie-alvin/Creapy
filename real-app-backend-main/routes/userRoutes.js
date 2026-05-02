@@ -9,8 +9,10 @@ router.post("/signup", authController.signup);
 router.post("/login", authController.login);
 router.post("/google", authController.google); // ← Move this HERE, before protect middleware
 router.get("/verify-email", authController.verifyEmail);
+router.post("/verify-phone", authController.verifyPhone);
+router.post("/resend-phone-otp", authController.resendPhoneOtp);
 router.get("/me", authController.protect, authController.getMe);
-router.get("/:id", authController.optionalAuth, authController.getUser);
+router.get("/:id", authController.optionalAuth, authController.getUserByListingId);
 
 // PROTECTED ROUTES (Authentication required for all routes below this point)
 router.use(authController.protect);

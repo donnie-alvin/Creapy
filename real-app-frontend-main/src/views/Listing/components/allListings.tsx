@@ -2,7 +2,14 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 // MUI Imports
-import { Box } from "@mui/material";
+import {
+  Box,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+} from "@mui/material";
 // Redux Imports
 import {
   useDeleteListingMutation,
@@ -108,6 +115,10 @@ const AllListings = () => {
     appearence: false,
     type: "",
   });
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    listingId: string;
+  }>({ open: false, listingId: "" });
 
   const handleCloseToast = () => {
     setToast({ ...toast, appearence: false });
@@ -308,8 +319,11 @@ const AllListings = () => {
                                   }
                                   disabled={isDeleting}
                                   onClick={() => {
-                                    DeleteListingHandler(item?._id);
                                     setSelectedListing(item?._id);
+                                    setConfirmDialog({
+                                      open: true,
+                                      listingId: item?._id,
+                                    });
                                   }}
                                 >
                                   {selectedListing === item?._id && isDeleting ? (
@@ -386,6 +400,34 @@ const AllListings = () => {
         message={toast.message}
         handleClose={handleCloseToast}
       />
+      <Dialog
+        open={confirmDialog.open}
+        onClose={() => setConfirmDialog({ open: false, listingId: "" })}
+      >
+        <DialogTitle>Delete Listing</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Delete this listing? This cannot be undone.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <AppButton
+            variant="outlined"
+            onClick={() => setConfirmDialog({ open: false, listingId: "" })}
+          >
+            Cancel
+          </AppButton>
+          <AppButton
+            color="error"
+            onClick={() => {
+              DeleteListingHandler(confirmDialog.listingId);
+              setConfirmDialog({ open: false, listingId: "" });
+            }}
+          >
+            Delete
+          </AppButton>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

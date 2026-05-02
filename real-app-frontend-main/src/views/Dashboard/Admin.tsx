@@ -4,6 +4,11 @@ import {
   Checkbox,
   Chip,
   CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
   Paper,
   Tab,
   Table,
@@ -215,6 +220,13 @@ const AdminDashboard: React.FC = () => {
   const [commissionDrafts, setCommissionDrafts] = useState<Record<string, string>>({});
   const [activeProviderAction, setActiveProviderAction] = useState<string | null>(null);
   const [activeBookingAction, setActiveBookingAction] = useState<string | null>(null);
+  const [actionDialog, setActionDialog] = useState<{
+    open: boolean;
+    title: string;
+    body: string;
+    onConfirm: (() => void) | null;
+    commissionRate?: string;
+  }>({ open: false, title: "", body: "", onConfirm: null });
 
   const [triggerSearch, { data: inactiveData, isFetching: isFetchingInactive }] =
     useLazyGetInactiveListingsQuery();
@@ -893,7 +905,15 @@ const AdminDashboard: React.FC = () => {
                       />
                       <AppButton
                         size="small"
-                        onClick={() => handleSaveCommission(provider)}
+                        onClick={() =>
+                          setActionDialog({
+                            open: true,
+                            title: "Update Commission",
+                            body: `Update commission rate to ${commissionDrafts[provider._id]}%? This will apply to all future bookings for this provider.`,
+                            onConfirm: () => handleSaveCommission(provider),
+                            commissionRate: commissionDrafts[provider._id],
+                          })
+                        }
                         disabled={isBusy}
                       >
                         Save
@@ -913,7 +933,15 @@ const AdminDashboard: React.FC = () => {
                     <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
                       <AppButton
                         size="small"
-                        onClick={() => handleVerifyProvider(provider._id, "approved")}
+                        onClick={() =>
+                          setActionDialog({
+                            open: true,
+                            title: "Approve Provider",
+                            body: "Approve this provider? They will gain access to create rooms and accept bookings.",
+                            onConfirm: () =>
+                              handleVerifyProvider(provider._id, "approved"),
+                          })
+                        }
                         disabled={isBusy}
                       >
                         Approve
@@ -922,7 +950,15 @@ const AdminDashboard: React.FC = () => {
                         size="small"
                         variant="outlined"
                         color="error"
-                        onClick={() => handleVerifyProvider(provider._id, "rejected")}
+                        onClick={() =>
+                          setActionDialog({
+                            open: true,
+                            title: "Reject Provider",
+                            body: "Reject this provider? They will be notified.",
+                            onConfirm: () =>
+                              handleVerifyProvider(provider._id, "rejected"),
+                          })
+                        }
                         disabled={isBusy}
                       >
                         Reject
@@ -1175,7 +1211,14 @@ const AdminDashboard: React.FC = () => {
                   {canSettle ? (
                     <AppButton
                       size="small"
-                      onClick={() => handleSettleBooking(booking)}
+                      onClick={() =>
+                        setActionDialog({
+                          open: true,
+                          title: "Settle Booking",
+                          body: "Mark this booking as settled? This records the payout as complete.",
+                          onConfirm: () => handleSettleBooking(booking),
+                        })
+                      }
                       disabled={
                         activeBookingAction === booking._id && isSettlingBooking
                       }
@@ -1222,6 +1265,51 @@ const AdminDashboard: React.FC = () => {
         message={toast.message}
         handleClose={() => setToast((previous) => ({ ...previous, open: false }))}
       />
+      <Dialog
+        open={actionDialog.open}
+        onClose={() =>
+          setActionDialog({
+            open: false,
+            title: "",
+            body: "",
+            onConfirm: null,
+          })
+        }
+      >
+        <DialogTitle>{actionDialog.title}</DialogTitle>
+        <DialogContent>
+          <DialogContentText>{actionDialog.body}</DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <AppButton
+            variant="outlined"
+            onClick={() =>
+              setActionDialog({
+                open: false,
+                title: "",
+                body: "",
+                onConfirm: null,
+              })
+            }
+          >
+            Cancel
+          </AppButton>
+          <AppButton
+            disabled={isVerifyingProvider || isSavingCommission || isSettlingBooking}
+            onClick={() => {
+              actionDialog.onConfirm?.();
+              setActionDialog({
+                open: false,
+                title: "",
+                body: "",
+                onConfirm: null,
+              });
+            }}
+          >
+            Confirm
+          </AppButton>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

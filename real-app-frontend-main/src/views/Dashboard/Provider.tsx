@@ -2,6 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Box,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
   Grid,
   MenuItem,
   Paper,
@@ -13,6 +18,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TextField,
 } from "@mui/material";
 import AppContainer from "../../components/ui/AppContainer";
 import AppCard from "../../components/ui/AppCard";
@@ -185,6 +191,14 @@ const ProviderDashboard = () => {
     message: "",
     type: "success",
   });
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    title: string;
+    body: string;
+    onConfirm: ((reason?: string) => void) | null;
+  }>({ open: false, title: "", body: "", onConfirm: null });
+  const [cancelReason, setCancelReason] = useState("");
+  const [isCancelAction, setIsCancelAction] = useState(false);
 
   const { data: roomsResponse, isLoading: roomsLoading } = useGetMyRoomsQuery(undefined);
   const { data: bookingsResponse, isLoading: bookingsLoading } =
@@ -359,7 +373,8 @@ const ProviderDashboard = () => {
 
   const handleBookingAction = async (
     bookingId: string,
-    action: "confirm" | "decline" | "cancel"
+    action: "confirm" | "decline" | "cancel",
+    reason?: string
   ) => {
     try {
       if (action === "confirm") {
@@ -371,7 +386,10 @@ const ProviderDashboard = () => {
       }
 
       if (action === "cancel") {
-        await cancelBooking(bookingId).unwrap();
+        await cancelBooking({
+          id: bookingId,
+          body: reason ? { reason } : undefined,
+        }).unwrap();
       }
 
       showToast(`Booking ${action}ed successfully.`);
@@ -726,7 +744,15 @@ const ProviderDashboard = () => {
                                     </AppButton>
                                     <AppButton
                                       color="error"
-                                      onClick={() => handleDeleteRoom(room?._id)}
+                                      onClick={() => {
+                                        setConfirmDialog({
+                                          open: true,
+                                          title: "Delete Room",
+                                          body: "Delete this room? All associated availability data will be removed.",
+                                          onConfirm: () => handleDeleteRoom(room?._id),
+                                        });
+                                        setIsCancelAction(false);
+                                      }}
                                       disabled={deletingRoom}
                                     >
                                       Delete
@@ -785,27 +811,49 @@ const ProviderDashboard = () => {
                               >
                                 <AppButton
                                   variant="outlined"
-                                  onClick={() =>
-                                    handleBookingAction(booking?._id, "confirm")
-                                  }
+                                  onClick={() => {
+                                    setConfirmDialog({
+                                      open: true,
+                                      title: "Confirm Booking",
+                                      body: "Confirm this booking? The guest will be notified.",
+                                      onConfirm: () =>
+                                        handleBookingAction(booking?._id, "confirm"),
+                                    });
+                                    setIsCancelAction(false);
+                                  }}
                                   disabled={isBookingActionLoading}
                                 >
                                   Confirm
                                 </AppButton>
                                 <AppButton
                                   variant="outlined"
-                                  onClick={() =>
-                                    handleBookingAction(booking?._id, "decline")
-                                  }
+                                  onClick={() => {
+                                    setConfirmDialog({
+                                      open: true,
+                                      title: "Decline Booking",
+                                      body: "Decline this booking? The guest will be notified.",
+                                      onConfirm: () =>
+                                        handleBookingAction(booking?._id, "decline"),
+                                    });
+                                    setIsCancelAction(false);
+                                  }}
                                   disabled={isBookingActionLoading}
                                 >
                                   Decline
                                 </AppButton>
                                 <AppButton
                                   color="error"
-                                  onClick={() =>
-                                    handleBookingAction(booking?._id, "cancel")
-                                  }
+                                  onClick={() => {
+                                    setConfirmDialog({
+                                      open: true,
+                                      title: "Cancel Booking",
+                                      body: "Cancel this booking?",
+                                      onConfirm: (reason) =>
+                                        handleBookingAction(booking?._id, "cancel", reason),
+                                    });
+                                    setIsCancelAction(true);
+                                    setCancelReason("");
+                                  }}
                                   disabled={isBookingActionLoading}
                                 >
                                   Cancel
@@ -1250,6 +1298,61 @@ const ProviderDashboard = () => {
         message={toast.message}
         handleClose={() => setToast((current) => ({ ...current, appearence: false }))}
       />
+      <Dialog
+        open={confirmDialog.open}
+        onClose={() => {
+          setConfirmDialog({ open: false, title: "", body: "", onConfirm: null });
+          setCancelReason("");
+          setIsCancelAction(false);
+        }}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>{confirmDialog.title}</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: isCancelAction ? 2 : 0 }}>
+            {confirmDialog.body}
+          </DialogContentText>
+          {isCancelAction === true ? (
+            <TextField
+              fullWidth
+              multiline
+              minRows={3}
+              label="Cancellation reason"
+              required
+              value={cancelReason}
+              onChange={(event) => setCancelReason(event.target.value)}
+            />
+          ) : null}
+        </DialogContent>
+        <DialogActions>
+          <AppButton
+            variant="outlined"
+            onClick={() => {
+              setConfirmDialog({ open: false, title: "", body: "", onConfirm: null });
+              setCancelReason("");
+              setIsCancelAction(false);
+            }}
+          >
+            Go Back
+          </AppButton>
+          <AppButton
+            disabled={
+              isBookingActionLoading ||
+              deletingRoom ||
+              (isCancelAction && !cancelReason.trim())
+            }
+            onClick={() => {
+              confirmDialog.onConfirm?.(cancelReason.trim());
+              setConfirmDialog({ open: false, title: "", body: "", onConfirm: null });
+              setCancelReason("");
+              setIsCancelAction(false);
+            }}
+          >
+            Confirm
+          </AppButton>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

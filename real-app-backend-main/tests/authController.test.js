@@ -3,9 +3,11 @@ const assert = require("node:assert/strict");
 const jwt = require("jsonwebtoken");
 
 const emailUtils = require("../utils/email");
+const smsUtils = require("../utils/sms");
 const prisma = require("../utils/prisma");
 
 const originalSendEmail = emailUtils.sendEmail;
+const originalSendSms = smsUtils.sendSms;
 const originalPrisma = {
   listingFindUnique: prisma.listing.findUnique,
   userCreate: prisma.user.create,
@@ -52,6 +54,7 @@ test.before(() => {
 
 test.afterEach(() => {
   emailUtils.sendEmail = originalSendEmail;
+  smsUtils.sendSms = originalSendSms;
   prisma.listing.findUnique = originalPrisma.listingFindUnique;
   prisma.user.create = originalPrisma.userCreate;
   prisma.user.delete = originalPrisma.userDelete;
@@ -76,7 +79,7 @@ test("getUser returns a public-safe payload for anonymous viewers", async () => 
     emailVerificationExpires: new Date(),
   });
 
-  const result = await invokeController(authController.getUser, {
+  const result = await invokeController(authController.getUserByListingId, {
     params: { id: "listing-1" },
   });
 
@@ -105,7 +108,7 @@ test("getUser includes contact details only when auth context is present", async
     nationalId: "63-123456-A-12",
   });
 
-  const result = await invokeController(authController.getUser, {
+  const result = await invokeController(authController.getUserByListingId, {
     params: { id: "listing-1" },
     user: { id: "viewer-1" },
   });
@@ -175,6 +178,40 @@ test("login allows verified legacy-compatible users to access the API", async ()
   assert.equal(result.statusCode, 200);
   assert.ok(result.body.token);
   assert.equal(result.body.data.user._id, "legacy-1");
+});
+
+test("login strips OTP and verification secrets from the auth payload", async () => {
+  const authController = loadAuthController();
+  prisma.user.findUnique = async () => ({
+    id: "legacy-1",
+    email: "legacy@example.com",
+    username: "legacy-user",
+    role: "tenant",
+    password:
+      "$2a$12$eSWb0YLeBJ2rwbW5rsHJL.ue4SqeYpybOXnMwoDdYPSop4WPNStoO",
+    isEmailVerified: true,
+    isPhoneVerified: true,
+    phoneOtp: "hashed-otp",
+    phoneOtpExpires: new Date(Date.now() + 600000),
+    emailVerificationToken: "hashed-token",
+    emailVerificationExpires: new Date(Date.now() + 86400000),
+    nationalId: "63-123456-A-12",
+  });
+
+  const result = await invokeController(authController.login, {
+    body: {
+      email: "legacy@example.com",
+      password: "password123",
+    },
+  });
+
+  assert.equal(result.statusCode, 200);
+  assert.equal("password" in result.body.data.user, false);
+  assert.equal("phoneOtp" in result.body.data.user, false);
+  assert.equal("phoneOtpExpires" in result.body.data.user, false);
+  assert.equal("emailVerificationToken" in result.body.data.user, false);
+  assert.equal("emailVerificationExpires" in result.body.data.user, false);
+  assert.equal("nationalId" in result.body.data.user, false);
 });
 
 test("login blocks users whose verification state is unverified", async () => {
@@ -247,6 +284,130 @@ test("verifyEmail returns a login-shaped success response for valid tokens", asy
   assert.ok(queriedFilter.emailVerificationToken);
   assert.ok(queriedFilter.emailVerificationExpires.gt instanceof Date);
   assert.equal(jwt.verify(result.body.token, process.env.JWT_SECRET).id, "verified-user-1");
+  assert.equal("phoneOtp" in result.body.data.user, false);
+  assert.equal("phoneOtpExpires" in result.body.data.user, false);
+  assert.equal("emailVerificationToken" in result.body.data.user, false);
+  assert.equal("emailVerificationExpires" in result.body.data.user, false);
+  assert.equal("nationalId" in result.body.data.user, false);
+});
+
+test("verifyEmail returns a minimal pending-phone payload for landlords", async () => {
+  const authController = loadAuthController();
+
+  prisma.user.findFirst = async () => ({
+    id: "landlord-1",
+    username: "pending-landlord",
+    email: "landlord@example.com",
+    avatar: "avatar.png",
+    role: "landlord",
+    phoneNumber: "+263771234567",
+    nationalId: "63-123456-A-12",
+    password: "hashed-password",
+    isEmailVerified: false,
+    isPhoneVerified: false,
+    phoneOtp: "hashed-otp",
+    phoneOtpExpires: new Date(Date.now() + 600000),
+    emailVerificationToken: "hashed-email-token",
+    emailVerificationExpires: new Date(Date.now() + 86400000),
+  });
+
+  prisma.user.update = async () => ({
+    id: "landlord-1",
+    username: "pending-landlord",
+    email: "landlord@example.com",
+    avatar: "avatar.png",
+    role: "landlord",
+    phoneNumber: "+263771234567",
+    nationalId: "63-123456-A-12",
+    password: "hashed-password",
+    isEmailVerified: true,
+    isPhoneVerified: false,
+    phoneOtp: "hashed-otp",
+    phoneOtpExpires: new Date(Date.now() + 600000),
+    emailVerificationToken: null,
+    emailVerificationExpires: null,
+  });
+
+  const result = await invokeController(authController.verifyEmail, {
+    query: { token: "raw-verification-token" },
+  });
+
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.body.status, "pending_phone_verification");
+  assert.deepEqual(result.body.data.user, {
+    _id: "landlord-1",
+    username: "pending-landlord",
+    email: "landlord@example.com",
+    avatar: "avatar.png",
+    role: "landlord",
+    phoneNumber: "+263771234567",
+    isEmailVerified: true,
+    isPhoneVerified: false,
+  });
+  assert.equal("phoneOtp" in result.body.data.user, false);
+  assert.equal("phoneOtpExpires" in result.body.data.user, false);
+  assert.equal("emailVerificationToken" in result.body.data.user, false);
+  assert.equal("emailVerificationExpires" in result.body.data.user, false);
+  assert.equal("nationalId" in result.body.data.user, false);
+});
+
+test("signup with skipped email verification returns a minimal pending-phone payload", async () => {
+  process.env.SKIP_EMAIL_VERIFICATION = "true";
+  smsUtils.sendSms = async () => {};
+
+  const authController = loadAuthController();
+
+  prisma.user.create = async ({ data }) => ({
+    id: "landlord-1",
+    username: data.username,
+    email: data.email,
+    avatar: null,
+    role: data.role,
+    phoneNumber: data.phoneNumber,
+    nationalId: data.nationalId,
+    password: data.password,
+    isEmailVerified: false,
+    isPhoneVerified: false,
+    emailVerificationToken: data.emailVerificationToken,
+    emailVerificationExpires: data.emailVerificationExpires,
+  });
+
+  prisma.user.update = async () => ({
+    id: "landlord-1",
+    username: "pending-landlord",
+    email: "landlord@example.com",
+    avatar: null,
+    role: "landlord",
+    phoneNumber: "+263771234567",
+    nationalId: "63-123456-A-12",
+    password: "hashed-password",
+    isEmailVerified: true,
+    isPhoneVerified: false,
+    phoneOtp: "hashed-otp",
+    phoneOtpExpires: new Date(Date.now() + 600000),
+    emailVerificationToken: "hashed-email-token",
+    emailVerificationExpires: new Date(Date.now() + 86400000),
+  });
+
+  const result = await invokeController(authController.signup, {
+    body: {
+      username: "pending-landlord",
+      email: "landlord@example.com",
+      password: "password123",
+      role: "landlord",
+      phoneNumber: "+263771234567",
+      nationalId: "63-123456-A-12",
+    },
+  });
+
+  assert.equal(result.statusCode, 201);
+  assert.equal(result.body.status, "pending_phone_verification");
+  assert.equal(result.body.data.user.email, "landlord@example.com");
+  assert.equal("phoneOtp" in result.body.data.user, false);
+  assert.equal("phoneOtpExpires" in result.body.data.user, false);
+  assert.equal("emailVerificationToken" in result.body.data.user, false);
+  assert.equal("emailVerificationExpires" in result.body.data.user, false);
+  assert.equal("nationalId" in result.body.data.user, false);
 });
 
 test("verifyEmail preserves invalid or expired token errors", async () => {
@@ -263,6 +424,113 @@ test("verifyEmail preserves invalid or expired token errors", async () => {
   assert.equal(result.error.message, "Verification link is invalid or has expired");
 });
 
+test("verifyPhone rejects malformed OTP values before querying the database", async () => {
+  const authController = loadAuthController();
+  let findFirstCalled = false;
+
+  prisma.user.findFirst = async () => {
+    findFirstCalled = true;
+    return null;
+  };
+
+  const result = await invokeController(authController.verifyPhone, {
+    body: { email: "landlord@example.com", otp: "12ab" },
+  });
+
+  assert(result.error);
+  assert.equal(result.error.statusCode, 400);
+  assert.equal(result.error.message, "OTP must be a 6-digit number");
+  assert.equal(findFirstCalled, false);
+});
+
+test("verifyPhone scopes OTP verification to the provided landlord email", async () => {
+  const authController = loadAuthController();
+  let queriedFilter = null;
+  let updateArgs = null;
+
+  prisma.user.findFirst = async ({ where }) => {
+    queriedFilter = where;
+    return {
+      id: "landlord-1",
+      email: "landlord@example.com",
+      username: "pending-landlord",
+      role: "landlord",
+      password: "hashed-password",
+      isEmailVerified: true,
+      isPhoneVerified: false,
+    };
+  };
+
+  prisma.user.update = async (args) => {
+    updateArgs = args;
+    return {
+      id: "landlord-1",
+      email: "landlord@example.com",
+      username: "pending-landlord",
+      role: "landlord",
+      password: "hashed-password",
+      isEmailVerified: true,
+      isPhoneVerified: true,
+      phoneOtp: null,
+      phoneOtpExpires: null,
+    };
+  };
+
+  const result = await invokeController(authController.verifyPhone, {
+    body: { email: "landlord@example.com", otp: "123456" },
+  });
+
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.body.status, "success");
+  assert.equal(queriedFilter.email, "landlord@example.com");
+  assert.equal(queriedFilter.role, "landlord");
+  assert.equal(queriedFilter.isEmailVerified, true);
+  assert.equal(queriedFilter.isPhoneVerified, false);
+  assert.ok(queriedFilter.phoneOtp);
+  assert.ok(queriedFilter.phoneOtpExpires.gt instanceof Date);
+  assert.deepEqual(updateArgs, {
+    where: { id: "landlord-1" },
+    data: {
+      isPhoneVerified: true,
+      phoneOtp: null,
+      phoneOtpExpires: null,
+    },
+  });
+  assert.equal(jwt.verify(result.body.token, process.env.JWT_SECRET).id, "landlord-1");
+});
+
+test("getMe strips OTP and verification secrets from the authenticated payload", async () => {
+  const authController = loadAuthController();
+
+  prisma.user.findUnique = async () => ({
+    id: "me-1",
+    email: "me@example.com",
+    username: "current-user",
+    role: "landlord",
+    password: "hashed-password",
+    isEmailVerified: true,
+    isPhoneVerified: false,
+    phoneOtp: "hashed-otp",
+    phoneOtpExpires: new Date(Date.now() + 600000),
+    emailVerificationToken: "hashed-token",
+    emailVerificationExpires: new Date(Date.now() + 86400000),
+    nationalId: "63-123456-A-12",
+  });
+
+  const result = await invokeController(authController.getMe, {
+    user: { id: "me-1" },
+  });
+
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.body.data.user._id, "me-1");
+  assert.equal("password" in result.body.data.user, false);
+  assert.equal("phoneOtp" in result.body.data.user, false);
+  assert.equal("phoneOtpExpires" in result.body.data.user, false);
+  assert.equal("emailVerificationToken" in result.body.data.user, false);
+  assert.equal("emailVerificationExpires" in result.body.data.user, false);
+  assert.equal("nationalId" in result.body.data.user, false);
+});
+
 test("google marks existing unverified users as verified before issuing a token", async () => {
   const authController = loadAuthController();
   let updateArgs = null;
@@ -274,6 +542,7 @@ test("google marks existing unverified users as verified before issuing a token"
     role: "tenant",
     password: "hashed-password",
     isEmailVerified: false,
+    isPhoneVerified: false,
   });
 
   prisma.user.update = async (args) => {
@@ -299,7 +568,7 @@ test("google marks existing unverified users as verified before issuing a token"
   assert.equal(result.statusCode, 200);
   assert.deepEqual(updateArgs, {
     where: { id: "google-user-1" },
-    data: { isEmailVerified: true },
+    data: { isEmailVerified: true, isPhoneVerified: true },
   });
   assert.ok(result.body.token);
   assert.equal(result.body.data.user._id, "google-user-1");
@@ -316,6 +585,7 @@ test("google does not re-save existing users that are already verified", async (
     role: "tenant",
     password: "hashed-password",
     isEmailVerified: true,
+    isPhoneVerified: true,
   });
 
   prisma.user.update = async () => {
