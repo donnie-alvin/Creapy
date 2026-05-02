@@ -94,3 +94,20 @@ SEED_API_BASE=https://your-backend-url.amplifyapp.com npm run seed
 The script is idempotent for reruns. It logs in existing demo users when
 possible, recreates any missing ones, and skips listing creation for landlords
 who already have an active listing.
+
+## Seeding directly with Prisma
+
+Keep the API-based flow with:
+
+```bash
+npm run seed
+```
+
+Or seed the database directly using `DATABASE_URL` from `real-app-backend-main/.env`:
+
+```bash
+npm run seed:db
+```
+
+This bypasses the HTTP API and writes demo data straight through Prisma into the
+configured PostgreSQL database.
