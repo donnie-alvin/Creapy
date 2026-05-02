@@ -14,17 +14,31 @@ process.on("uncaughtException", (err) => {
 const port = process.env.PORT || 5000;
 
 async function start() {
+  let databaseConnected = false;
+
   try {
     await prisma.$connect();
+    databaseConnected = true;
     console.log("Connected to Aurora PostgreSQL".cyan.underline.bold);
     console.log("Environment:", `${process.env.NODE_ENV || "development"}`.yellow);
   } catch (err) {
-    console.error("Failed to connect to Aurora PostgreSQL:", err.message);
-    process.exit(1);
+    console.error(
+      "Failed to connect to Aurora PostgreSQL. Starting in degraded mode:",
+      err.message
+    );
+    console.log(
+      "Environment:",
+      `${process.env.NODE_ENV || "development"}`.yellow
+    );
   }
 
   const server = app.listen(port, () => {
     console.log(`Server running on port ${port}`);
+    if (!databaseConnected) {
+      console.log(
+        "Database connection unavailable at startup; requests that require PostgreSQL may fail."
+      );
+    }
   });
 
   process.on("unhandledRejection", (err) => {
