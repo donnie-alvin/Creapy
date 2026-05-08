@@ -4,7 +4,7 @@
 
 - Backend stack is conventional and already wired: Express 4, Mongoose 8, JWT auth, `express-rate-limit`, `express-validator`, `nodemailer`, and Paynow.
 - Frontend stack is conventional and already wired: React 18, TypeScript, MUI, Redux Toolkit, and RTK Query.
-- Deployment artifacts exist for AWS Amplify at repo root and in both app subdirectories.
+- The frontend has checked-in AWS Amplify config, and the backend is now operated on AWS Elastic Beanstalk.
 - Direct file upload is feasible because the backend signs Cloudflare R2 upload URLs in `controllers/uploadController.js`.
 
 ## Operational feasibility

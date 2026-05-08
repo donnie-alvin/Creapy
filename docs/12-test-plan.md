@@ -23,4 +23,5 @@
 - image signing plus direct R2 upload
 - end-to-end Paynow payment flow in a real environment
 - saved-search email delivery with actual SMTP configuration
-- Amplify deployment packaging for both apps
+- frontend Amplify deployment verification
+- backend AWS Elastic Beanstalk deployment verification

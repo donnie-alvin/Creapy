@@ -49,6 +49,12 @@ app.use((req, res, next) => {
 });
 
 // ROUTES
+app.get("/api/v1", (req, res) => {
+  res.status(200).json({
+    status: "ok",
+    message: "Creapy API v1 is running.",
+  });
+});
 app.use("/api/v1/users", userRouter);
 app.use("/api/v1/saved-searches", savedSearchRouter);
 app.use("/api/v1/payments", paymentRouter);

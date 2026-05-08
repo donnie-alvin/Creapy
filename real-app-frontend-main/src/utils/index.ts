@@ -96,6 +96,32 @@ function normalizeBaseUrl(value: string) {
   return `/${normalizedPath}`;
 }
 
+function shouldUpgradeToHttps(url: URL) {
+  if (typeof window === "undefined") return false;
+  if (window.location.protocol !== "https:") return false;
+
+  return !["localhost", "127.0.0.1"].includes(url.hostname);
+}
+
+function normalizeConfiguredBaseUrl(value: string) {
+  const normalizedValue = normalizeBaseUrl(value);
+  if (!/^http:\/\//i.test(normalizedValue)) {
+    return normalizedValue;
+  }
+
+  try {
+    const parsedUrl = new URL(normalizedValue);
+    if (!shouldUpgradeToHttps(parsedUrl)) {
+      return normalizedValue;
+    }
+
+    parsedUrl.protocol = "https:";
+    return trimTrailingSlashes(parsedUrl.toString());
+  } catch {
+    return normalizedValue;
+  }
+}
+
 export function joinUrl(baseUrl: string, path: string) {
   const normalizedBaseUrl = normalizeBaseUrl(baseUrl);
   const normalizedPath = path.replace(/^\/+/, "");
@@ -108,10 +134,12 @@ export function joinUrl(baseUrl: string, path: string) {
 }
 
 export function getApiBaseUrl() {
-  const apiUrl = normalizeBaseUrl(process.env.REACT_APP_API_URL || "");
+  const apiUrl = normalizeConfiguredBaseUrl(process.env.REACT_APP_API_URL || "");
   if (apiUrl) return apiUrl;
 
-  const backendUrl = process.env.REACT_APP_BACKEND_URL || "";
+  const backendUrl = normalizeConfiguredBaseUrl(
+    process.env.REACT_APP_BACKEND_URL || ""
+  );
   if (backendUrl) return joinUrl(backendUrl, "api/v1");
 
   return "";

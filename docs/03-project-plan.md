@@ -17,7 +17,7 @@
 7. Frontend delivery
    - Route-level views for public browsing, landlord dashboard, tenant dashboard, listing create/edit, and payment flow.
 8. Deployment
-   - Amplify monorepo config plus backend compute manifest.
+   - Frontend Amplify config plus backend hosting on AWS Elastic Beanstalk.
 
 ## Open items implied by the repository
 
