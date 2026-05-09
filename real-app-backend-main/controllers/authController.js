@@ -29,6 +29,25 @@ const createEmailVerificationToken = () => {
   };
 };
 
+const buildVerificationDeliveryError = (channel, error) => {
+  const providerDetail =
+    typeof error?.message === "string" && error.message.trim()
+      ? ` Provider response: ${error.message.trim()}`
+      : "";
+
+  if (channel === "sms") {
+    return new AppError(
+      `We couldn't send the phone verification code. Please try signing up again.${providerDetail}`,
+      503
+    );
+  }
+
+  return new AppError(
+    `We couldn't send the verification email. Please try signing up again.${providerDetail}`,
+    503
+  );
+};
+
 const generatePhoneOtp = () => {
   const rawOtp = String(Math.floor(100000 + Math.random() * 900000));
   const hashedOtp = crypto.createHash("sha256").update(rawOtp).digest("hex");
@@ -156,10 +175,15 @@ exports.signup = catchAsync(async (req, res, next) => {
         },
       });
 
-      await sendSms({
-        to: newUser.phoneNumber,
-        message: `Your Creapy verification code is ${phoneVerification.rawOtp}. It expires in 10 minutes.`,
-      });
+      try {
+        await sendSms({
+          to: newUser.phoneNumber,
+          message: `Your Creapy verification code is ${phoneVerification.rawOtp}. It expires in 10 minutes.`,
+        });
+      } catch (error) {
+        await prisma.user.delete({ where: { id: newUser.id } });
+        return next(buildVerificationDeliveryError("sms", error));
+      }
 
       res.status(201).json({
         status: "pending_phone_verification",
@@ -179,8 +203,11 @@ exports.signup = catchAsync(async (req, res, next) => {
     return;
   }
 
+  let verificationChannel = "email";
+
   try {
     if (newUser.role === "landlord") {
+      verificationChannel = "sms";
       const phoneVerification = generatePhoneOtp();
 
       await prisma.user.update({
@@ -197,16 +224,11 @@ exports.signup = catchAsync(async (req, res, next) => {
       });
     }
 
+    verificationChannel = "email";
     await sendVerificationEmail(newUser, verification.rawToken);
   } catch (error) {
     await prisma.user.delete({ where: { id: newUser.id } });
-
-    return next(
-      new AppError(
-        "We couldn't send the verification email. Please try signing up again.",
-        503
-      )
-    );
+    return next(buildVerificationDeliveryError(verificationChannel, error));
   }
 
   newUser.password = undefined;

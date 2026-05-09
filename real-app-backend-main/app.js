@@ -20,15 +20,49 @@ const listingRoutes = require("./routes/listingRoutes");
 const adminRouter = require("./routes/adminRoutes");
 const bookingRouter = require("./routes/bookingRoutes");
 
-const rawFrontendUrl = process.env.FRONTEND_URL || "";
-const corsOrigin = rawFrontendUrl
-  ? rawFrontendUrl.replace(/\/$/, "")
-  : "*";
+const normalizeOrigin = (value = "") => value.trim().replace(/\/$/, "");
+const configuredOrigins = [
+  process.env.FRONTEND_URL,
+  process.env.CORS_ALLOWED_ORIGINS,
+]
+  .filter(Boolean)
+  .flatMap((value) => value.split(","))
+  .map(normalizeOrigin)
+  .filter(Boolean);
+
+const allowedOriginPatterns = [
+  /^https?:\/\/localhost(?::\d+)?$/i,
+  /^https?:\/\/127\.0\.0\.1(?::\d+)?$/i,
+  /^https:\/\/[a-z0-9-]+\.[a-z0-9-]+\.amplifyapp\.com$/i,
+  /^https:\/\/([a-z0-9-]+\.)*townruins\.com$/i,
+];
+
+const corsOrigin = (origin, callback) => {
+  if (!origin) {
+    callback(null, true);
+    return;
+  }
+
+  const normalizedOrigin = normalizeOrigin(origin);
+  const isConfiguredOrigin = configuredOrigins.includes(normalizedOrigin);
+  const matchesKnownPattern = allowedOriginPatterns.some((pattern) =>
+    pattern.test(normalizedOrigin)
+  );
+
+  if (isConfiguredOrigin || matchesKnownPattern) {
+    callback(null, true);
+    return;
+  }
+
+  callback(new Error(`CORS blocked for origin: ${normalizedOrigin}`));
+};
+
 const corsOptions = {
   origin: corsOrigin,
-  methods: "*",
-  allowedHeaders: "*",
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
   credentials: true,
+  optionsSuccessStatus: 204,
 };
 
 const app = express();

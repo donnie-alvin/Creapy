@@ -140,8 +140,63 @@ test("signup removes a newly created user if verification email delivery fails",
 
   const result = await invokeController(authController.signup, {
     body: {
-      username: "new-landlord",
+      username: "new-tenant",
       email: "new@example.com",
+      password: "password123",
+      role: "tenant",
+    },
+  });
+
+  assert(result.error);
+  assert.equal(result.error.statusCode, 503);
+  assert.equal(
+    result.error.message,
+    "We couldn't send the verification email. Please try signing up again. Provider response: ses down"
+  );
+  assert.deepEqual(deletedFilter, { id: "new-user-id" });
+});
+
+test("signup removes a newly created landlord if phone verification SMS delivery fails", async () => {
+  process.env.SKIP_EMAIL_VERIFICATION = "true";
+  let deletedFilter = null;
+
+  smsUtils.sendSms = async () => {
+    throw new Error("sms gateway down");
+  };
+
+  const authController = loadAuthController();
+
+  prisma.user.create = async ({ data }) => ({
+    id: "new-landlord-id",
+    ...data,
+  });
+
+  prisma.user.update = async ({ where, data }) => ({
+    id: where.id,
+    username: "pending-landlord",
+    email: "landlord@example.com",
+    avatar: null,
+    role: "landlord",
+    phoneNumber: "+263771234567",
+    nationalId: "63-123456-A-12",
+    password: "hashed-password",
+    isEmailVerified: true,
+    isPhoneVerified: false,
+    phoneOtp: data.phoneOtp,
+    phoneOtpExpires: data.phoneOtpExpires,
+    emailVerificationToken: "hashed-email-token",
+    emailVerificationExpires: new Date(Date.now() + 86400000),
+  });
+
+  prisma.user.delete = async ({ where }) => {
+    deletedFilter = where;
+    return { id: where.id };
+  };
+
+  const result = await invokeController(authController.signup, {
+    body: {
+      username: "new-landlord",
+      email: "landlord@example.com",
       password: "password123",
       role: "landlord",
       phoneNumber: "+263771234567",
@@ -153,9 +208,9 @@ test("signup removes a newly created user if verification email delivery fails",
   assert.equal(result.error.statusCode, 503);
   assert.equal(
     result.error.message,
-    "We couldn't send the verification email. Please try signing up again."
+    "We couldn't send the phone verification code. Please try signing up again. Provider response: sms gateway down"
   );
-  assert.deepEqual(deletedFilter, { id: "new-user-id" });
+  assert.deepEqual(deletedFilter, { id: "new-landlord-id" });
 });
 
 test("login allows verified legacy-compatible users to access the API", async () => {
